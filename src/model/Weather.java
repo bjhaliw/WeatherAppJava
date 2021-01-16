@@ -17,23 +17,28 @@ public class Weather {
 	private String currentCondition, currentTemp;
 	private String barometer, windSpeed, humidity, dewpoint;
 	private String visibility, windChill, heatIndex, lastUpdate;
+	private String zipcode;
 
 	public Weather(String zipcode) {
 		this.currentWeatherDetail = new HashMap<>();
 		this.simpleForecast = new ArrayList<>();
 		this.detailedForecast = new ArrayList<>();
-		if (zipcode != null) {
-			updateWeather(zipcode);
+		if (zipcode != null && !zipcode.equals("")) {
+			this.zipcode = zipcode;
+			updateWeather();
 		} else {
 			System.out.println("Please enter a zipcode");
 		}
 	}
 
-	public void updateWeather(String zipcode) {
+	/**
+	 * Gets the current weather conditions for the current zipcode
+	 */
+	public void updateWeather() {
 		Document document;
 		try {
-			System.out.println(URL + zipcode);
-			document = Jsoup.connect(URL + zipcode).get();
+			System.out.println(URL + this.zipcode);
+			document = Jsoup.connect(URL + this.zipcode).get();
 			System.out.println(document.toString());
 			this.getCurrentWeatherSummary(document);
 			this.getCurrentWeatherDetail(document);
@@ -100,6 +105,11 @@ public class Weather {
 		}
 	}
 
+	/**
+	 * Gets the detailed forecast for the weather. This is the seven day format that is
+	 * usually a bit more vague since the weather is further out at this point.
+	 * @param document - Jsoup Document containing HTML code
+	 */
 	private void getDetailedForecastedWeather(Document document) {
 		Elements label = document.select("div[class=col-sm-2 forecast-label]");
 		Elements text = document.select("div[class=col-sm-10 forecast-text]");
@@ -142,6 +152,14 @@ public class Weather {
 	 */
 	public ArrayList<String> getDetailedForecast() {
 		return detailedForecast;
+	}
+	
+	/**
+	 * Sets the Zipcode
+	 * @param zipcode - String to represent user's zipcode
+	 */
+	public void setZipcode(String zipcode) {
+		this.zipcode = zipcode;
 	}
 
 }
