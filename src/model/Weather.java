@@ -17,7 +17,7 @@ public class Weather {
 	private String currentCondition, currentTemp;
 	private String barometer, windSpeed, humidity, dewpoint;
 	private String visibility, windChill, heatIndex, lastUpdate;
-	private String zipcode;
+	private String zipcode, currentLocation;
 
 	public Weather(String zipcode) {
 		this.currentWeatherDetail = new HashMap<>();
@@ -44,7 +44,7 @@ public class Weather {
 			this.getCurrentWeatherDetail(document);
 			this.getDetailedForecastedWeather(document);
 			this.getExtendedForecastedWeather(document);
-
+			this.currentLocation = document.select("h2[class=panel-title]").get(1).text();
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -160,6 +160,10 @@ public class Weather {
 	 */
 	public void setZipcode(String zipcode) {
 		this.zipcode = zipcode;
+	}
+	
+	public String getCurrentLocation() {
+		return this.currentLocation;
 	}
 
 }

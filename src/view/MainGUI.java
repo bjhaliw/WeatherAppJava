@@ -10,85 +10,245 @@ import java.io.File;
 import java.time.LocalTime;
 import java.util.Random;
 
+import javafx.scene.chart.BarChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
-
+import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.layout.*;
 import javafx.scene.text.*;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
+
 import javafx.scene.paint.Color;
 
 public class MainGUI extends Application {
 
 	Weather weather;
+	Text humidity, barometer, dewpoint, windSpeed;
+	Text highAndLowTemp;
+	BorderPane bpane;
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
 		StackPane pane = new StackPane();
 
 		ImageView view = new ImageView("resources/sun/sunflowers-3640935_1920.jpg");
-		// HBox box = new HBox(10);
-		VBox otherBox = new VBox(10);
-		otherBox.setAlignment(Pos.TOP_CENTER);
-		// box.setAlignment(Pos.TOP_CENTER);
+		VBox topBox = new VBox(10);
+		topBox.setAlignment(Pos.TOP_CENTER);
 		TextField zipfield = new TextField();
 		zipfield.setOpacity(.3);
 		zipfield.setPromptText("Enter Zipcode");
 		Button goButton = new Button("Go");
 		goButton.setOpacity(.5);
-		Text conText = new Text("Current Conditions");
-		Text tempText = new Text("Current Temperature");
-		tempText.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 30));
-		conText.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 30));
-		tempText.setStrokeWidth(1);
-		conText.setStrokeWidth(1);
-		tempText.setFill(Color.WHITE);
-		conText.setFill(Color.WHITE);
-		tempText.setStroke(Color.BLACK);
-		conText.setStroke(Color.BLACK);
 
-		goButton.setOnAction(e -> {
-			if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-				System.out.println(zipfield.getText());
-				weather = new Weather(zipfield.getText());
-				conText.setText(weather.getCurrentCondition());
-				tempText.setText(weather.getCurrentTemp());
+		Text time = setText("", 36, .8);
+		Text location = setText("Current Location", 24, .8);
+		Text conText = setText("Current Conditions", 24, .8);
+		Text tempText = setText("Current Temperature", 36, .8);
+		Text lastUpdate = setText("Current as of: ", 30, .5);
+		this.highAndLowTemp = setText("High and Low Temp", 24, .8);
+		this.barometer = setText("Barometer", 24, .8);
+		this.windSpeed = setText("Wind Speed", 24, .8);
+		this.dewpoint = setText("Dew Point", 24, .8);
 
-				if (this.weather.getCurrentCondition().contains("Cloud")) {
-					view.setImage(getRandomImage("src/resources/cloud"));
-				} else if (this.weather.getCurrentCondition().contains("Sun")) {
-					view.setImage(getRandomImage("src/resources/sun"));
-				} else if (this.weather.getCurrentCondition().contains("Rain")) {
-					view.setImage(getRandomImage("src/resources/rain"));
+		HBox weatherInfo = new HBox(30);
+		weatherInfo.setAlignment(Pos.CENTER);
+
+		VBox tempAndCondition = new VBox(10);
+		tempAndCondition.setAlignment(Pos.CENTER);
+		tempAndCondition.getChildren().addAll(tempText, conText);
+		
+		VBox timeAndLocation = new VBox(10);
+		timeAndLocation.setAlignment(Pos.CENTER);
+		timeAndLocation.getChildren().addAll(time, location, lastUpdate);
+		
+		VBox otherDetails = new VBox(10);
+		otherDetails.setAlignment(Pos.CENTER);
+		otherDetails.getChildren().addAll(this.highAndLowTemp, windSpeed);
+		
+		Separator sep1 = new Separator();
+		sep1.setOrientation(Orientation.VERTICAL);
+		Separator sep2 = new Separator();
+		sep2.setOrientation(Orientation.VERTICAL);
+		
+		weatherInfo.getChildren().addAll(tempAndCondition, sep1, timeAndLocation, sep2, otherDetails);
+		
+		// System clock
+		showClock(time);
+
+		zipfield.setOnKeyPressed(e -> {
+			if (e.getCode() == KeyCode.ENTER) {
+				if (zipfield.getText() != null && !zipfield.getText().equals("")) {
+					updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
 				}
-
 			}
 		});
 
-		Text time = new Text();
-		time.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 30));
-		time.setStrokeWidth(1);
-		time.setStroke(Color.BLACK);
-		time.setFill(Color.WHITE);
-		showClock(time);
-
-		// box.getChildren().addAll(zipfield, goButton, conText, tempText, time);
-		// pane.getChildren().addAll(view, box);
+		goButton.setOnAction(e -> {
+			if (zipfield.getText() != null && !zipfield.getText().equals("")) {
+				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+			}
+		});
+		
 		HBox zipBox = new HBox(10);
 		zipBox.setAlignment(Pos.CENTER_LEFT);
 		zipBox.getChildren().addAll(zipfield, goButton);
-		otherBox.getChildren().addAll(zipBox, time, conText, tempText);
-		pane.getChildren().addAll(view, otherBox);
+		topBox.getChildren().addAll(zipBox, weatherInfo);
+		
+		this.bpane = new BorderPane();
+		this.bpane.setBottom(lastUpdate);
+		this.bpane.setTop(topBox);
+		BorderPane.setAlignment(lastUpdate, Pos.CENTER);
+		BorderPane.setAlignment(topBox, Pos.CENTER);
+		pane.getChildren().addAll(view, this.bpane);
 
 		Scene scene = new Scene(pane, 1920, 1000);
+		// scene.getStylesheets().add("Main.css");
 		primaryStage.setScene(scene);
 		primaryStage.setTitle("Weather App");
 		primaryStage.show();
+	}
+
+	/**
+	 * Updates the weather details box with current information
+	 */
+	private void getWeatherDetails() {
+		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
+			this.barometer
+					.setText("Barometric Pressure: " + this.weather.getCurrentWeatherDetail().get("Barometer"));
+			this.windSpeed.setText("Wind Speed: " + this.weather.getCurrentWeatherDetail().get("Wind Speed"));
+			this.dewpoint.setText("Dew Point: " + this.weather.getCurrentWeatherDetail().get("Dewpoint"));
+		}
+	}
+
+	/**
+	 * Creates a BarChart displaying the humidity and precipitation chance
+	 */
+	private void createBarChart() {
+		final CategoryAxis xAxis = new CategoryAxis();
+		final NumberAxis yAxis = new NumberAxis(0, 100, 10);
+		yAxis.setTickLabelFill(Color.WHITE);
+		xAxis.setTickLabelFill(Color.WHITE);
+		yAxis.setTickLabelFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 12));
+		xAxis.setTickLabelFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 12));
+		final BarChart<String, Number> bc = new BarChart<>(xAxis, yAxis);
+		bc.setPrefWidth(100);
+		bc.setTitle("Humidity/Precipitation");
+		bc.lookup(".chart-title").setStyle(
+				"-fx-text-fill: white; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0.5, 0.0, 0.0);");
+		bc.lookup(".chart-plot-background").setStyle("-fx-background-color: transparent;");
+		bc.setLegendVisible(false);
+
+		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
+			String hum = this.weather.getCurrentWeatherDetail().get("Humidity").replace("%", "");
+			Number num = Integer.parseInt(hum);
+			XYChart.Series series1 = new XYChart.Series();
+			series1.getData().add(new XYChart.Data("Humidity", num));
+
+			XYChart.Series series2 = new XYChart.Series();
+			String rain = this.weather.getDetailedForecast().get(0);
+
+			if (rain.indexOf("Chance of precipitation is ") != -1) {
+				rain = rain.substring(rain.indexOf("Chance of precipitation is "));
+				rain = rain.substring("Chance of precipitation is ".length());
+				rain = rain.replace("%", "");
+				rain = rain.replace(".", "");
+				rain = rain.replaceAll("\\D+","");
+				Number precip = Double.parseDouble(rain);
+				series2.getData().add(new XYChart.Data("Preceipitation", precip));
+			} else {
+				series2.getData().add(new XYChart.Data("Preceipitation", 0));
+			}
+
+			System.out.println(rain);
+
+			bc.getData().addAll(series1, series2);
+			bc.lookup(".default-color0.chart-bar").setStyle("-fx-bar-fill: green;");
+			bc.lookup(".default-color1.chart-bar").setStyle("-fx-bar-fill: blue;");
+
+			this.bpane.setLeft(bc);
+
+		}
+
+	}
+
+	/**
+	 * Handler for the Go button and zipfield textfield. Updates the values with
+	 * current information
+	 * 
+	 * @param view       - ImageView displaying the background image
+	 * @param zipfield   - TextField containing the zipcode
+	 * @param conText    - Text containing the current condition
+	 * @param tempText   - Text containing the current temperature
+	 * @param lastUpdate - Text containing the date of the information
+	 */
+	private void updateWeatherValues(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
+			Text location) {
+		if (zipfield.getText() != null && !zipfield.getText().equals("")) {
+			System.out.println(zipfield.getText());
+			this.weather = new Weather(zipfield.getText());
+			conText.setText(weather.getCurrentCondition());
+			tempText.setText(weather.getCurrentTemp());
+			location.setText(weather.getCurrentLocation());
+			getWeatherDetails();
+			if (this.weather.getCurrentCondition().contains("Cloud")
+					|| this.weather.getCurrentCondition().contains("Overcast")) {
+				view.setImage(getRandomImage("src/resources/cloud"));
+			} else if (this.weather.getCurrentCondition().contains("Sun")
+					|| (this.weather.getCurrentCondition().contains("Fair"))) {
+				view.setImage(getRandomImage("src/resources/sun"));
+			} else if (this.weather.getCurrentCondition().contains("Rain")) {
+				view.setImage(getRandomImage("src/resources/rain"));
+			} else if (this.weather.getCurrentCondition().contains("Clear")) {
+				view.setImage(getRandomImage("src/resources/clear"));
+			} else if (this.weather.getCurrentCondition().contains("Wind")) {
+				view.setImage(getRandomImage("src/resources/wind"));
+			} else if (this.weather.getCurrentCondition().contains("Mist")
+					|| this.weather.getCurrentCondition().contains("Fog")) {
+				view.setImage(getRandomImage("src/resources/fog"));
+			} else if (this.weather.getCurrentCondition().contains("Snow")) {
+				view.setImage(getRandomImage("src/resources/snow"));
+			}
+
+			String high = "";
+			String low = "";
+			int counter = 0;
+			for (String string : this.weather.getSimpleForecast()) {
+				if (counter == 2) {
+					break;
+				} else if (string.contains("High:")) {
+					high = string.substring(string.lastIndexOf("High:"));
+					counter++;
+				} else if (string.contains("Low:")) {
+					low = string.substring(string.lastIndexOf("Low:"));
+					counter++;
+				}
+			}
+
+			this.highAndLowTemp.setText(high + ", " + low);
+
+			createBarChart();
+			lastUpdate.setText("Current as of: " + this.weather.getCurrentWeatherDetail().get("Last update"));
+		}
+	}
+
+	private Text setText(String string, int fontSize, double strokeWidth) {
+		Text text = new Text(string);
+		text.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, fontSize));
+		text.setStrokeWidth(strokeWidth);
+		text.setStroke(Color.BLACK);
+		text.setFill(Color.WHITE);
+
+		return text;
 	}
 
 	/**

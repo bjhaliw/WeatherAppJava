@@ -1,6 +1,9 @@
 package controller;
 
+import java.io.File;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -12,17 +15,43 @@ import org.jsoup.select.Elements;
 public class Driver {
 
 	public static void main(String[] args) {
-		String url = "https://www.weather.gov/21122";
+		String zipcode = "96818";
+		String url = "https://www.weather.gov/" + zipcode;
 
 		try {
 			Document document = Jsoup.connect(url).get();
 			System.out.println(document.toString());
 
-			System.out.println("\nWeather Information Location: " + document.select("h2[class=panel-title]").get(0).text());
+			File file = new File(
+					System.getProperty("user.dir") + "//HTML Text Files//" + zipcode + " - " + LocalTime.now().getHour()
+							+ "_" + LocalTime.now().getMinute() + "_" + LocalTime.now().getSecond() + ".txt");
+			PrintWriter writer = new PrintWriter(file);
+			writer.write(document.toString());
+			writer.close();
+
+			System.out.println(
+					"\nWeather Information Location: " + document.select("h2[class=panel-title]").get(0).text());
 			getCurrentWeatherSummary(document);
 			getCurrentWeatherDetail(document);
-			getExtendedForecastedWeather(document);
+			ArrayList<String> list = getExtendedForecastedWeather(document);
 			getDetailedForecastedWeather(document);
+
+			String high = "";
+			String low = "";
+			int counter = 0;
+			for (String string : list) {
+				if (counter == 2) {
+					break;
+				} else if (string.contains("High:")) {
+					high = string.substring(string.lastIndexOf("High:"));
+					counter++;
+				} else if (string.contains("Low:")) {
+					low = string.substring(string.lastIndexOf("Low:"));
+					counter++;
+				}
+			}
+
+			System.out.println(high + ", " + low);
 
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
@@ -111,21 +140,21 @@ public class Driver {
 
 		return list;
 	}
-	
+
 	public static ArrayList<String> getDetailedForecastedWeather(Document document) {
 		ArrayList<String> list = new ArrayList<>();
 		Elements label = document.select("div[class=col-sm-2 forecast-label]");
-		Elements text = document.select("div[class=col-sm-10 forecast-text]");		
-		
+		Elements text = document.select("div[class=col-sm-10 forecast-text]");
+
 		for (int i = 0; i < text.size(); i++) {
 			list.add(label.get(i).text() + ": " + text.get(i).text());
 		}
-		
+
 		System.out.println("\nDetailed Forecast");
 		for (String string : list) {
 			System.out.println(string);
 		}
-		
+
 		return list;
 	}
 
