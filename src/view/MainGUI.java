@@ -19,6 +19,7 @@ import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.geometry.HPos;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.layout.*;
@@ -33,8 +34,9 @@ import javafx.scene.paint.Color;
 public class MainGUI extends Application {
 
 	Weather weather;
+	GridPane gpane;
 	Text humidity, barometer, dewpoint, windSpeed;
-	Text highAndLowTemp;
+	Text highAndLowTemp, windChill, heatIndex, visibility;
 	BorderPane bpane;
 
 	@Override
@@ -56,9 +58,13 @@ public class MainGUI extends Application {
 		Text tempText = setText("Current Temperature", 36, .8);
 		Text lastUpdate = setText("Current as of: ", 30, .5);
 		this.highAndLowTemp = setText("High and Low Temp", 24, .8);
+		this.humidity = setText("Humidity", 24, .8);
 		this.barometer = setText("Barometer", 24, .8);
 		this.windSpeed = setText("Wind Speed", 24, .8);
 		this.dewpoint = setText("Dew Point", 24, .8);
+		this.heatIndex = setText("Heat Index", 24, .8);
+		this.windChill = setText("Wind Chill", 24, .8);
+		this.visibility = setText("Visibility", 24, .8);
 
 		HBox weatherInfo = new HBox(30);
 		weatherInfo.setAlignment(Pos.CENTER);
@@ -72,7 +78,7 @@ public class MainGUI extends Application {
 		timeAndLocation.getChildren().addAll(time, location, lastUpdate);
 		
 		VBox otherDetails = new VBox(10);
-		otherDetails.setAlignment(Pos.CENTER);
+		otherDetails.setAlignment(Pos.CENTER_LEFT);
 		otherDetails.getChildren().addAll(this.highAndLowTemp, windSpeed);
 		
 		Separator sep1 = new Separator();
@@ -104,11 +110,33 @@ public class MainGUI extends Application {
 		zipBox.getChildren().addAll(zipfield, goButton);
 		topBox.getChildren().addAll(zipBox, weatherInfo);
 		
+		
+		this.gpane = new GridPane();
+		gpane.setAlignment(Pos.CENTER_RIGHT);
+		gpane.setVgap(40);
+		gpane.add(this.humidity, 0, 0);
+		gpane.add(this.heatIndex, 0, 1);
+		gpane.add(this.windChill, 0, 2);
+		gpane.add(this.dewpoint, 0, 3);
+		gpane.add(this.barometer, 0, 4);
+		gpane.add(this.visibility, 0, 5);
+		
+		GridPane.setHalignment(this.humidity, HPos.RIGHT);
+		GridPane.setHalignment(this.heatIndex, HPos.RIGHT);
+		GridPane.setHalignment(this.windChill, HPos.RIGHT);
+		GridPane.setHalignment(this.dewpoint, HPos.RIGHT);
+		GridPane.setHalignment(this.barometer, HPos.RIGHT);
+		GridPane.setHalignment(this.visibility, HPos.RIGHT);
+		
+
+		
 		this.bpane = new BorderPane();
 		this.bpane.setBottom(lastUpdate);
 		this.bpane.setTop(topBox);
+		this.bpane.setRight(gpane);
 		BorderPane.setAlignment(lastUpdate, Pos.CENTER);
 		BorderPane.setAlignment(topBox, Pos.CENTER);
+		BorderPane.setAlignment(gpane, Pos.CENTER_RIGHT);
 		pane.getChildren().addAll(view, this.bpane);
 
 		Scene scene = new Scene(pane, 1920, 1000);
@@ -123,12 +151,31 @@ public class MainGUI extends Application {
 	 */
 	private void getWeatherDetails() {
 		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
+			this.humidity.setText("Humidity: " + this.weather.getCurrentWeatherDetail().get("Humidity"));
 			this.barometer
-					.setText("Barometric Pressure: " + this.weather.getCurrentWeatherDetail().get("Barometer"));
+					.setText("Barometric Pressure: \n" + this.weather.getCurrentWeatherDetail().get("Barometer"));
 			this.windSpeed.setText("Wind Speed: " + this.weather.getCurrentWeatherDetail().get("Wind Speed"));
-			this.dewpoint.setText("Dew Point: " + this.weather.getCurrentWeatherDetail().get("Dewpoint"));
+			this.dewpoint.setText("Dew Point: \n" + this.weather.getCurrentWeatherDetail().get("Dewpoint"));
+			this.windChill.setText("Wind Chill: \n" + this.weather.getCurrentWeatherDetail().get("Wind Chill"));
+			this.heatIndex.setText("Heat Index: \n" + this.weather.getCurrentWeatherDetail().get("Heat Index"));
+			this.visibility.setText("Visibility: \n" + this.weather.getCurrentWeatherDetail().get("Visibility"));
+			
+			
+			
+			if ( this.weather.getCurrentWeatherDetail().get("Wind Chill") == null) {
+				windChill.setVisible(false);
+				
+			}
+			
+			if (this.weather.getCurrentWeatherDetail().get("Heat Index") == null) {
+				heatIndex.setVisible(false);
+			}
+			
+			System.out.println(windChill.toString());
+			System.out.println(heatIndex.toString());
 		}
 	}
+
 
 	/**
 	 * Creates a BarChart displaying the humidity and precipitation chance

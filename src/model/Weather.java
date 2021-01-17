@@ -15,16 +15,14 @@ public class Weather {
 	private HashMap<String, String> currentWeatherDetail;
 	private ArrayList<String> simpleForecast, detailedForecast;
 	private String currentCondition, currentTemp;
-	private String barometer, windSpeed, humidity, dewpoint;
-	private String visibility, windChill, heatIndex, lastUpdate;
-	private String zipcode, currentLocation;
+	private String locationQuery, currentLocation;
 
-	public Weather(String zipcode) {
+	public Weather(String location) {
 		this.currentWeatherDetail = new HashMap<>();
 		this.simpleForecast = new ArrayList<>();
 		this.detailedForecast = new ArrayList<>();
-		if (zipcode != null && !zipcode.equals("")) {
-			this.zipcode = zipcode;
+		if (location != null && !location.equals("")) {
+			this.locationQuery = location;
 			updateWeather();
 		} else {
 			System.out.println("Please enter a zipcode");
@@ -37,16 +35,16 @@ public class Weather {
 	public void updateWeather() {
 		Document document;
 		try {
-			System.out.println(URL + this.zipcode);
-			document = Jsoup.connect(URL + this.zipcode).get();
+			System.out.println(URL + this.locationQuery);
+			document = Jsoup.connect(URL + this.locationQuery).get();
 			System.out.println(document.toString());
 			this.getCurrentWeatherSummary(document);
 			this.getCurrentWeatherDetail(document);
 			this.getDetailedForecastedWeather(document);
 			this.getExtendedForecastedWeather(document);
 			this.currentLocation = document.select("h2[class=panel-title]").get(1).text();
+
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 
@@ -80,10 +78,11 @@ public class Weather {
 			System.out.println(e.text());
 		}
 
-		// Change this to a switch statement to initialize the instance variables instead.
+		// Change this to a switch statement to initialize the instance variables
+		// instead.
 		// Will be way easier
 		for (int i = 0; i < detailParagraphs.size(); i += 2) {
-			
+
 			this.currentWeatherDetail.put(detailParagraphs.get(i).text(), detailParagraphs.get(i + 1).text());
 		}
 	}
@@ -106,8 +105,9 @@ public class Weather {
 	}
 
 	/**
-	 * Gets the detailed forecast for the weather. This is the seven day format that is
-	 * usually a bit more vague since the weather is further out at this point.
+	 * Gets the detailed forecast for the weather. This is the seven day format that
+	 * is usually a bit more vague since the weather is further out at this point.
+	 * 
 	 * @param document - Jsoup Document containing HTML code
 	 */
 	private void getDetailedForecastedWeather(Document document) {
@@ -153,15 +153,16 @@ public class Weather {
 	public ArrayList<String> getDetailedForecast() {
 		return detailedForecast;
 	}
-	
+
 	/**
 	 * Sets the Zipcode
+	 * 
 	 * @param zipcode - String to represent user's zipcode
 	 */
 	public void setZipcode(String zipcode) {
-		this.zipcode = zipcode;
+		this.locationQuery = zipcode;
 	}
-	
+
 	public String getCurrentLocation() {
 		return this.currentLocation;
 	}

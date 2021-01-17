@@ -7,5 +7,7 @@
 			<attribute name="javadoc_location" value="https://jsoup.org/apidocs/"/>
 		</attributes>
 	</classpathentry>
+	<classpathentry kind="lib" path="C:/Users/Brenton/Desktop/Desktop/json-simple-1.1.jar"/>
+	<classpathentry kind="lib" path="C:/Users/Brenton/Downloads/gson-2.8.6.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
