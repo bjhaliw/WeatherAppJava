@@ -4,12 +4,16 @@ import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import model.Weather;
+import model.WeatherInformation;
+import model.WeatherPeriod;
 
 import java.io.File;
-
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.time.LocalTime;
 import java.util.Random;
 
+import errors.WeatherJsonError;
 import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
@@ -25,6 +29,7 @@ import javafx.geometry.Pos;
 import javafx.scene.layout.*;
 import javafx.scene.text.*;
 import javafx.scene.control.*;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
@@ -33,7 +38,7 @@ import javafx.scene.paint.Color;
 
 public class MainGUI extends Application {
 
-	Weather weather;
+	WeatherInformation weather;
 	GridPane gpane;
 	Text humidity, barometer, dewpoint, windSpeed;
 	Text highAndLowTemp, windChill, heatIndex, visibility;
@@ -72,22 +77,22 @@ public class MainGUI extends Application {
 		VBox tempAndCondition = new VBox(10);
 		tempAndCondition.setAlignment(Pos.CENTER);
 		tempAndCondition.getChildren().addAll(tempText, conText);
-		
+
 		VBox timeAndLocation = new VBox(10);
 		timeAndLocation.setAlignment(Pos.CENTER);
 		timeAndLocation.getChildren().addAll(time, location, lastUpdate);
-		
+
 		VBox otherDetails = new VBox(10);
 		otherDetails.setAlignment(Pos.CENTER_LEFT);
 		otherDetails.getChildren().addAll(this.highAndLowTemp, windSpeed);
-		
+
 		Separator sep1 = new Separator();
 		sep1.setOrientation(Orientation.VERTICAL);
 		Separator sep2 = new Separator();
 		sep2.setOrientation(Orientation.VERTICAL);
-		
+
 		weatherInfo.getChildren().addAll(tempAndCondition, sep1, timeAndLocation, sep2, otherDetails);
-		
+
 		// System clock
 		showClock(time);
 
@@ -104,13 +109,12 @@ public class MainGUI extends Application {
 				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
 			}
 		});
-		
+
 		HBox zipBox = new HBox(10);
 		zipBox.setAlignment(Pos.CENTER_LEFT);
 		zipBox.getChildren().addAll(zipfield, goButton);
 		topBox.getChildren().addAll(zipBox, weatherInfo);
-		
-		
+
 		this.gpane = new GridPane();
 		gpane.setAlignment(Pos.CENTER_RIGHT);
 		gpane.setVgap(40);
@@ -120,20 +124,19 @@ public class MainGUI extends Application {
 		gpane.add(this.dewpoint, 0, 3);
 		gpane.add(this.barometer, 0, 4);
 		gpane.add(this.visibility, 0, 5);
-		
+
 		GridPane.setHalignment(this.humidity, HPos.RIGHT);
 		GridPane.setHalignment(this.heatIndex, HPos.RIGHT);
 		GridPane.setHalignment(this.windChill, HPos.RIGHT);
 		GridPane.setHalignment(this.dewpoint, HPos.RIGHT);
 		GridPane.setHalignment(this.barometer, HPos.RIGHT);
 		GridPane.setHalignment(this.visibility, HPos.RIGHT);
-		
 
-		
 		this.bpane = new BorderPane();
 		this.bpane.setBottom(lastUpdate);
 		this.bpane.setTop(topBox);
 		this.bpane.setRight(gpane);
+
 		BorderPane.setAlignment(lastUpdate, Pos.CENTER);
 		BorderPane.setAlignment(topBox, Pos.CENTER);
 		BorderPane.setAlignment(gpane, Pos.CENTER_RIGHT);
@@ -149,38 +152,31 @@ public class MainGUI extends Application {
 	/**
 	 * Updates the weather details box with current information
 	 */
-	private void getWeatherDetails() {
+	private void getCurrentWeatherDetails() {
 		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
 			this.humidity.setText("Humidity: " + this.weather.getCurrentWeatherDetail().get("Humidity"));
-			this.barometer
-					.setText("Barometric Pressure: \n" + this.weather.getCurrentWeatherDetail().get("Barometer"));
+			this.barometer.setText("Barometric Pressure: \n" + this.weather.getCurrentWeatherDetail().get("Barometer"));
 			this.windSpeed.setText("Wind Speed: " + this.weather.getCurrentWeatherDetail().get("Wind Speed"));
 			this.dewpoint.setText("Dew Point: \n" + this.weather.getCurrentWeatherDetail().get("Dewpoint"));
 			this.windChill.setText("Wind Chill: \n" + this.weather.getCurrentWeatherDetail().get("Wind Chill"));
 			this.heatIndex.setText("Heat Index: \n" + this.weather.getCurrentWeatherDetail().get("Heat Index"));
 			this.visibility.setText("Visibility: \n" + this.weather.getCurrentWeatherDetail().get("Visibility"));
-			
-			
-			
-			if ( this.weather.getCurrentWeatherDetail().get("Wind Chill") == null) {
+
+			if (this.weather.getCurrentWeatherDetail().get("Wind Chill") == null) {
 				windChill.setVisible(false);
-				
 			}
-			
+
 			if (this.weather.getCurrentWeatherDetail().get("Heat Index") == null) {
 				heatIndex.setVisible(false);
 			}
-			
-			System.out.println(windChill.toString());
-			System.out.println(heatIndex.toString());
 		}
 	}
-
 
 	/**
 	 * Creates a BarChart displaying the humidity and precipitation chance
 	 */
-	private void createBarChart() {
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private void createHumidityPrecipitationBarChart() {
 		final CategoryAxis xAxis = new CategoryAxis();
 		final NumberAxis yAxis = new NumberAxis(0, 100, 10);
 		yAxis.setTickLabelFill(Color.WHITE);
@@ -202,14 +198,14 @@ public class MainGUI extends Application {
 			series1.getData().add(new XYChart.Data("Humidity", num));
 
 			XYChart.Series series2 = new XYChart.Series();
-			String rain = this.weather.getDetailedForecast().get(0);
+			String rain = this.weather.getDetailedPeriods().get(0).getDetailedForecast();
 
 			if (rain.indexOf("Chance of precipitation is ") != -1) {
 				rain = rain.substring(rain.indexOf("Chance of precipitation is "));
 				rain = rain.substring("Chance of precipitation is ".length());
 				rain = rain.replace("%", "");
 				rain = rain.replace(".", "");
-				rain = rain.replaceAll("\\D+","");
+				rain = rain.replaceAll("\\D+", "");
 				Number precip = Double.parseDouble(rain);
 				series2.getData().add(new XYChart.Data("Preceipitation", precip));
 			} else {
@@ -242,52 +238,75 @@ public class MainGUI extends Application {
 			Text location) {
 		if (zipfield.getText() != null && !zipfield.getText().equals("")) {
 			System.out.println(zipfield.getText());
-			this.weather = new Weather(zipfield.getText());
-			conText.setText(weather.getCurrentCondition());
-			tempText.setText(weather.getCurrentTemp());
-			location.setText(weather.getCurrentLocation());
-			getWeatherDetails();
-			if (this.weather.getCurrentCondition().contains("Cloud")
-					|| this.weather.getCurrentCondition().contains("Overcast")) {
-				view.setImage(getRandomImage("src/resources/cloud"));
-			} else if (this.weather.getCurrentCondition().contains("Sun")
-					|| (this.weather.getCurrentCondition().contains("Fair"))) {
-				view.setImage(getRandomImage("src/resources/sun"));
-			} else if (this.weather.getCurrentCondition().contains("Rain")) {
-				view.setImage(getRandomImage("src/resources/rain"));
-			} else if (this.weather.getCurrentCondition().contains("Clear")) {
-				view.setImage(getRandomImage("src/resources/clear"));
-			} else if (this.weather.getCurrentCondition().contains("Wind")) {
-				view.setImage(getRandomImage("src/resources/wind"));
-			} else if (this.weather.getCurrentCondition().contains("Mist")
-					|| this.weather.getCurrentCondition().contains("Fog")) {
-				view.setImage(getRandomImage("src/resources/fog"));
-			} else if (this.weather.getCurrentCondition().contains("Snow")) {
-				view.setImage(getRandomImage("src/resources/snow"));
-			}
+			try {
+				this.weather = new WeatherInformation(zipfield.getText());
+				conText.setText(weather.getCurrentCondition());
+				tempText.setText(weather.getCurrentTemp());
+				location.setText(weather.getCurrentLocation());
+				getCurrentWeatherDetails();
 
-			String high = "";
-			String low = "";
-			int counter = 0;
-			for (String string : this.weather.getSimpleForecast()) {
-				if (counter == 2) {
-					break;
-				} else if (string.contains("High:")) {
-					high = string.substring(string.lastIndexOf("High:"));
-					counter++;
-				} else if (string.contains("Low:")) {
-					low = string.substring(string.lastIndexOf("Low:"));
-					counter++;
+				if (this.weather.getCurrentCondition().contains("Cloud")
+						|| this.weather.getCurrentCondition().contains("Overcast")) {
+					view.setImage(getRandomImage("src/resources/cloud"));
+				} else if (this.weather.getCurrentCondition().contains("Sun")
+						|| (this.weather.getCurrentCondition().contains("Fair"))) {
+					view.setImage(getRandomImage("src/resources/sun"));
+				} else if (this.weather.getCurrentCondition().contains("Rain")) {
+					view.setImage(getRandomImage("src/resources/rain"));
+				} else if (this.weather.getCurrentCondition().contains("Clear")) {
+					view.setImage(getRandomImage("src/resources/clear"));
+				} else if (this.weather.getCurrentCondition().contains("Wind")) {
+					view.setImage(getRandomImage("src/resources/wind"));
+				} else if (this.weather.getCurrentCondition().contains("Mist")
+						|| this.weather.getCurrentCondition().contains("Fog")) {
+					view.setImage(getRandomImage("src/resources/fog"));
+				} else if (this.weather.getCurrentCondition().contains("Snow")) {
+					view.setImage(getRandomImage("src/resources/snow"));
 				}
+				/*
+				 * String high = ""; String low = ""; int counter = 0; for (String string :
+				 * this.weather.getExtendedForecastStrings()) { if (counter == 2) { break; }
+				 * else if (string.contains("High:")) { high =
+				 * string.substring(string.lastIndexOf("High:")); counter++; } else if
+				 * (string.contains("Low:")) { low =
+				 * string.substring(string.lastIndexOf("Low:")); counter++; } }
+				 */
+				double highNum = this.weather.getWeatherGridInformation().getDailyTemperatureHigh().values.get(0).getValue();
+				double lowNum = this.weather.getWeatherGridInformation().getDailyTemperatureLow().values.get(0).getValue();
+				NumberFormat nf = NumberFormat.getNumberInstance();
+				nf.setMaximumFractionDigits(0);
+				nf.setRoundingMode(RoundingMode.HALF_UP);
+				
+				String high = nf.format(highNum);
+				String low = nf.format(lowNum);
+				
+				if ( this.weather.getWeatherGridInformation().getDailyTemperatureHigh().uom.equals("wmoUnit:degC")) {
+					highNum = (highNum * 9/5) + 32;
+					lowNum = (lowNum * 9/5) + 32;
+					high = nf.format(highNum);
+					low = nf.format(lowNum);
+				}
+				
+				this.highAndLowTemp.setText("High: " + high + "°F, Low: " + low + "°F");
+
+				createHumidityPrecipitationBarChart();
+				lastUpdate.setText("Current as of: " + this.weather.getCurrentWeatherDetail().get("Last update"));
+			} catch (WeatherJsonError e) {
+				JsonError( e.getMessage());
+				e.printStackTrace();
 			}
-
-			this.highAndLowTemp.setText(high + ", " + low);
-
-			createBarChart();
-			lastUpdate.setText("Current as of: " + this.weather.getCurrentWeatherDetail().get("Last update"));
+			
 		}
 	}
 
+	/**
+	 * Creates a new JavaFX Text object to be used in the GUI
+	 * 
+	 * @param string      - What the Text should say
+	 * @param fontSize    - How big the font should be
+	 * @param strokeWidth - How wide the text stroke should be
+	 * @return - JavaFX Text Object
+	 */
 	private Text setText(String string, int fontSize, double strokeWidth) {
 		Text text = new Text(string);
 		text.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, fontSize));
@@ -350,6 +369,16 @@ public class MainGUI extends Application {
 
 	public static void main(String[] args) {
 		launch(args);
+	}
+	
+	private void JsonError(String message) {
+		Alert alert = new Alert(AlertType.INFORMATION, "An error has occured when trying to read the JSON file for the requested location.\n"
+				+ "The error message is as follows:\n"
+				+ message, ButtonType.OK);
+		alert.setTitle("Error Reading JSON File");
+		alert.setHeaderText("JSON Error");
+
+		alert.show();
 	}
 
 }

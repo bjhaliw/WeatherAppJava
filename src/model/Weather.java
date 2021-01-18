@@ -1,6 +1,8 @@
 package model;
 
 import java.io.IOException;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -11,6 +13,9 @@ import org.jsoup.select.Elements;
 
 public class Weather {
 
+	// API for geocoding the locations passed in
+	public static final String GEOCODE = "https://www.mapquestapi.com/geocoding/v1/address?key=" + Config.API_KEY + "&"; 
+	
 	public static final String URL = "https://www.weather.gov/";
 	private HashMap<String, String> currentWeatherDetail;
 	private ArrayList<String> simpleForecast, detailedForecast;
@@ -36,6 +41,11 @@ public class Weather {
 		Document document;
 		try {
 			System.out.println(URL + this.locationQuery);
+			
+			String latLong = getLatLong(this.locationQuery);
+			
+			System.out.println(latLong);
+			
 			document = Jsoup.connect(URL + this.locationQuery).get();
 			System.out.println(document.toString());
 			this.getCurrentWeatherSummary(document);
@@ -48,6 +58,33 @@ public class Weather {
 			e.printStackTrace();
 		}
 
+	}
+	
+	private String getLatLong(String location) {
+		String url = GEOCODE + "outFormat=xml&location=" + location;
+		
+		try {
+			Document document = Jsoup.connect(url).get();
+			
+			String lat = document.getElementsByTag("lat").get(0).text();
+			String lng = document.getElementsByTag("lng").get(0).text();
+			
+			double latNum = Double.parseDouble(lat);
+			double lngNum = Double.parseDouble(lng);
+			
+			DecimalFormat df = new DecimalFormat("#.####");
+			df.setRoundingMode(RoundingMode.CEILING);
+			
+			lat = df.format(latNum);
+			lng = df.format(lngNum); 
+			
+			return lat + "," + lng;			
+			
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+				
+		return null;
 	}
 
 	/**
