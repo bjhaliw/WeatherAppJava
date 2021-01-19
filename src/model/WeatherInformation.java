@@ -1,6 +1,7 @@
 package model;
 
 import java.io.IOException;
+import java.net.SocketTimeoutException;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -10,6 +11,7 @@ import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
 import errors.WeatherJsonError;
+import javafx.concurrent.Task;
 
 /**
  * The WeatherInformation class is responsible for keeping track
@@ -43,6 +45,7 @@ public class WeatherInformation {
 	private String currentCondition, currentTemp;
 	private String currentLocation, timeZone;
 	private WeatherGridInformation weatherGridInformation;
+	private String location;
 
 	/**
 	 * Constructor for the WeatherInformation class. Takes in a String representing
@@ -56,39 +59,38 @@ public class WeatherInformation {
 		this.hourlyPeriods = new ArrayList<>();
 		this.detailedPeriods = new ArrayList<>();
 		this.weatherGridInformation= new WeatherGridInformation();
-
-		// Make sure the TextField from the GUI wasn't empty
-		if (location != null && !location.equals("")) {
-			updateWeather(location); // Starts the GET process
-		} else {
-			System.out.println("Please enter a valid location");
-		}
+		this.location = location;
 	}
 
 	/**
 	 * Gets the current weather conditions for the current zipcode
+	 * @return 
 	 * @throws WeatherJsonError 
 	 */
-	public void updateWeather(String location) throws WeatherJsonError {
+	public void updateWeather() throws WeatherJsonError, SocketTimeoutException {
 		Document document;
-		try {
-			// Access API for MapQuest and NWS and return the latlong location
-			String latLong = JSONReader.manipulateJSON(this, location);
+		
+		if (location != null && !location.equals("")) {
+			try {
+				// Access API for MapQuest and NWS and return the latlong location
+				String latLong = JSONReader.manipulateJSON(this, location);
 
-			// Getting the Current Weather Information by scraping the NWS website //
-			String[] latLongList = latLong.split(",");
-			String append = "lat=" + latLongList[0] + "&lon=" + latLongList[1];
+				// Getting the Current Weather Information by scraping the NWS website //
+				String[] latLongList = latLong.split(",");
+				String append = "lat=" + latLongList[0] + "&lon=" + latLongList[1];
 
-			// Connect to the NWS website and scrape the data
-			document = Jsoup.connect(NWS_URL + append).get();
-			System.out.println(document.toString());
-			this.getCurrentWeatherSummary(document);
-			this.getCurrentWeatherDetail(document);
-			this.extendedForecastStrings = getExtendedForecastedWeather(document);
-			this.currentLocation = document.select("h2[class=panel-title]").get(1).text();
+				// Connect to the NWS website and scrape the data
+				
+				document = Jsoup.connect(NWS_URL + append).get();
+				//System.out.println(document.toString());
+				this.getCurrentWeatherSummary(document);
+				this.getCurrentWeatherDetail(document);
+				this.extendedForecastStrings = getExtendedForecastedWeather(document);
+				this.currentLocation = document.select("h2[class=panel-title]").get(1).text();
 
-		} catch (IOException e) {
-			e.printStackTrace();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 		}
 
 	}
@@ -108,13 +110,8 @@ public class WeatherInformation {
 		Element forecastID = document.getElementById("seven-day-forecast-body");
 		Elements forecastParagraphs = forecastID.select("li"); // Information is in a list
 
-		System.out.println("\nExtended Forecast");
 		for (Element e : forecastParagraphs) {
 			list.add(e.text());
-		}
-
-		for (String string : list) {
-			System.out.println(string);
 		}
 
 		return list;
@@ -144,9 +141,6 @@ public class WeatherInformation {
 		Element detailID = document.getElementById("current_conditions_detail");
 		Elements detailParagraphs = detailID.select("td"); // Information is in a table
 
-		for (Element e : detailParagraphs) {
-			System.out.println(e.text());
-		}
 
 		for (int i = 0; i < detailParagraphs.size(); i += 2) {
 

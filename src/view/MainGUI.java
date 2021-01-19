@@ -1,14 +1,15 @@
 package view;
 
+import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.stage.Stage;
 import javafx.util.Duration;
-import model.Weather;
 import model.WeatherInformation;
 import model.WeatherPeriod;
 
 import java.io.File;
 import java.math.RoundingMode;
+import java.net.SocketTimeoutException;
 import java.text.NumberFormat;
 import java.time.LocalTime;
 import java.util.Random;
@@ -23,6 +24,10 @@ import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
+import javafx.application.Platform;
+import javafx.concurrent.Task;
+import javafx.concurrent.WorkerStateEvent;
+import javafx.event.EventHandler;
 import javafx.geometry.HPos;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
@@ -43,6 +48,7 @@ public class MainGUI extends Application {
 	Text humidity, barometer, dewpoint, windSpeed;
 	Text highAndLowTemp, windChill, heatIndex, visibility;
 	BorderPane bpane;
+	final ProgressBar progressBar = new ProgressBar(0);
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
@@ -96,10 +102,12 @@ public class MainGUI extends Application {
 		// System clock
 		showClock(time);
 
+		this.progressBar.setOpacity(0.5);
+
 		zipfield.setOnKeyPressed(e -> {
 			if (e.getCode() == KeyCode.ENTER) {
 				if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-					updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+					startThread(view, zipfield, conText, tempText, lastUpdate, location);
 				}
 			}
 		});
@@ -112,7 +120,7 @@ public class MainGUI extends Application {
 
 		HBox zipBox = new HBox(10);
 		zipBox.setAlignment(Pos.CENTER_LEFT);
-		zipBox.getChildren().addAll(zipfield, goButton);
+		zipBox.getChildren().addAll(zipfield, goButton, this.progressBar);
 		topBox.getChildren().addAll(zipBox, weatherInfo);
 
 		this.gpane = new GridPane();
@@ -147,6 +155,7 @@ public class MainGUI extends Application {
 		primaryStage.setScene(scene);
 		primaryStage.setTitle("Weather App");
 		primaryStage.show();
+		primaryStage.setOnCloseRequest(e -> System.exit(0));
 	}
 
 	/**
@@ -212,7 +221,7 @@ public class MainGUI extends Application {
 				series2.getData().add(new XYChart.Data("Preceipitation", 0));
 			}
 
-			System.out.println(rain);
+			// System.out.println(rain);
 
 			bc.getData().addAll(series1, series2);
 			bc.lookup(".default-color0.chart-bar").setStyle("-fx-bar-fill: green;");
@@ -221,6 +230,41 @@ public class MainGUI extends Application {
 			this.bpane.setLeft(bc);
 
 		}
+
+	}
+
+	public void startThread(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
+			Text location) {
+
+		Task<Parent> updateWeather = new Task<Parent>() {
+			@Override
+			public Parent call() {
+
+				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+
+				// method to set progress
+				updateProgress(0, 100);
+
+				// method to set labeltext
+				updateMessage("All done!");
+
+				return zipfield;
+			}
+		};
+
+		this.progressBar.progressProperty().bind(updateWeather.progressProperty());
+		
+		Thread loadingThread = new Thread(updateWeather);
+		loadingThread.start();
+
+		updateWeather.setOnSucceeded(new EventHandler<WorkerStateEvent>() {
+			@Override
+			public void handle(WorkerStateEvent event) {
+				loadingThread.interrupt();
+				System.out.println("Finish");
+				
+			}
+		});
 
 	}
 
@@ -237,14 +281,22 @@ public class MainGUI extends Application {
 	private void updateWeatherValues(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
 			Text location) {
 		if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-			System.out.println(zipfield.getText());
+			// System.out.println(zipfield.getText());
 			try {
+
 				this.weather = new WeatherInformation(zipfield.getText());
+
+				this.weather.updateWeather();
+
 				conText.setText(weather.getCurrentCondition());
 				tempText.setText(weather.getCurrentTemp());
 				location.setText(weather.getCurrentLocation());
 				getCurrentWeatherDetails();
-
+				
+				Platform.runLater(() -> {
+					createHumidityPrecipitationBarChart();
+				});
+				
 				if (this.weather.getCurrentCondition().contains("Cloud")
 						|| this.weather.getCurrentCondition().contains("Overcast")) {
 					view.setImage(getRandomImage("src/resources/cloud"));
@@ -263,39 +315,44 @@ public class MainGUI extends Application {
 				} else if (this.weather.getCurrentCondition().contains("Snow")) {
 					view.setImage(getRandomImage("src/resources/snow"));
 				}
-				/*
-				 * String high = ""; String low = ""; int counter = 0; for (String string :
-				 * this.weather.getExtendedForecastStrings()) { if (counter == 2) { break; }
-				 * else if (string.contains("High:")) { high =
-				 * string.substring(string.lastIndexOf("High:")); counter++; } else if
-				 * (string.contains("Low:")) { low =
-				 * string.substring(string.lastIndexOf("Low:")); counter++; } }
-				 */
-				double highNum = this.weather.getWeatherGridInformation().getDailyTemperatureHigh().values.get(0).getValue();
-				double lowNum = this.weather.getWeatherGridInformation().getDailyTemperatureLow().values.get(0).getValue();
+
+				double highNum = this.weather.getWeatherGridInformation().getDailyTemperatureHigh().values.get(0)
+						.getValue();
+				double lowNum = this.weather.getWeatherGridInformation().getDailyTemperatureLow().values.get(0)
+						.getValue();
 				NumberFormat nf = NumberFormat.getNumberInstance();
 				nf.setMaximumFractionDigits(0);
 				nf.setRoundingMode(RoundingMode.HALF_UP);
-				
+
 				String high = nf.format(highNum);
 				String low = nf.format(lowNum);
-				
-				if ( this.weather.getWeatherGridInformation().getDailyTemperatureHigh().uom.equals("wmoUnit:degC")) {
-					highNum = (highNum * 9/5) + 32;
-					lowNum = (lowNum * 9/5) + 32;
+
+				if (this.weather.getWeatherGridInformation().getDailyTemperatureHigh().uom.equals("wmoUnit:degC")) {
+					highNum = (highNum * 9 / 5) + 32;
+					lowNum = (lowNum * 9 / 5) + 32;
 					high = nf.format(highNum);
 					low = nf.format(lowNum);
 				}
-				
+
 				this.highAndLowTemp.setText("High: " + high + "°F, Low: " + low + "°F");
 
-				createHumidityPrecipitationBarChart();
 				lastUpdate.setText("Current as of: " + this.weather.getCurrentWeatherDetail().get("Last update"));
+
 			} catch (WeatherJsonError e) {
-				JsonError( e.getMessage());
+				
+				Platform.runLater(() -> {
+					JsonError(e.getMessage());
+				});
+				
+				
+				e.printStackTrace();
+			} catch (SocketTimeoutException e) {
+				Platform.runLater(() -> {
+					readTimeOut(e.getMessage());
+				});
 				e.printStackTrace();
 			}
-			
+
 		}
 	}
 
@@ -329,9 +386,9 @@ public class MainGUI extends Application {
 		File cloudDir = new File(directory);
 		File[] pictures = cloudDir.listFiles();
 
-		for (File file : pictures) {
-			System.out.println(file.getAbsolutePath());
-		}
+		// for (File file : pictures) {
+		// System.out.println(file.getAbsolutePath());
+		// }
 
 		Random random = new Random();
 		File selectedPic = pictures[random.nextInt(pictures.length - 1)];
@@ -370,13 +427,25 @@ public class MainGUI extends Application {
 	public static void main(String[] args) {
 		launch(args);
 	}
-	
+
 	private void JsonError(String message) {
-		Alert alert = new Alert(AlertType.INFORMATION, "An error has occured when trying to read the JSON file for the requested location.\n"
-				+ "The error message is as follows:\n"
-				+ message, ButtonType.OK);
+		Alert alert = new Alert(AlertType.INFORMATION,
+				"An error has occured when trying to read the JSON file for the requested location.\n"
+						+ "The error message is as follows:\n" + message,
+				ButtonType.OK);
 		alert.setTitle("Error Reading JSON File");
 		alert.setHeaderText("JSON Error");
+
+		alert.show();
+	}
+	
+	private void readTimeOut(String message) {
+		Alert alert = new Alert(AlertType.INFORMATION,
+				"The Weather Application has failed to read from the required website\n"
+				+ "The message is: " + message,
+				ButtonType.OK);
+		alert.setTitle("Read Process has Timed Out");
+		alert.setHeaderText("Timed Out");
 
 		alert.show();
 	}
