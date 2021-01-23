@@ -1,0 +1,12 @@
+/*Menu bar Styling*/
+.menu-bar{
+    -fx-font-size: 14;
+    -fx-base : black;
+    
+}
+
+.context-menu {
+    -fx-background-color:  derive(black, 20%);
+    -fx-font-size: 14;
+    -fx-min-width: 150px;
+}

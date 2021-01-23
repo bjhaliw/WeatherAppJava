@@ -8,6 +8,7 @@ package model;
 public class WeatherValues {
 	private String validTime;
 	private double value;
+	private int intValue;
 	
 	/**
 	 * @return the validTime
@@ -22,7 +23,7 @@ public class WeatherValues {
 		this.validTime = validTime;
 	}
 	/**
-	 * @return the value
+	 * @return the raw value which is a double
 	 */
 	public double getValue() {
 		return value;
@@ -32,6 +33,18 @@ public class WeatherValues {
 	 */
 	public void setValue(double value) {
 		this.value = value;
+	}
+	/**
+	 * @return the intValue that might have been converted
+	 */
+	public int getIntValue() {
+		return intValue;
+	}
+	/**
+	 * @param intValue the intValue to set
+	 */
+	public void setIntValue(int intValue) {
+		this.intValue = intValue;
 	}
 	
 	

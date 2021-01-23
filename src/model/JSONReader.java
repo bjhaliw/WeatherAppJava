@@ -7,6 +7,7 @@ import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.DecimalFormat;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 
 import org.jsoup.Jsoup;
@@ -82,46 +83,24 @@ public class JSONReader {
 		// Create an object based on the .json properties object
 		JsonObject properties = obj.getAsJsonObject("properties");
 
-		// Create object based on the required weather details
-		JsonObject temperature = properties.getAsJsonObject("temperature");
-		JsonObject dewpoint = properties.getAsJsonObject("dewpoint");
-		JsonObject maxTemperature = properties.getAsJsonObject("maxTemperature");
-		JsonObject minTemperature = properties.getAsJsonObject("minTemperature");
-		JsonObject relativeHumidity = properties.getAsJsonObject("relativeHumidity");
-		JsonObject apparentTemperature = properties.getAsJsonObject("apparentTemperature");
-		JsonObject heatIndex = properties.getAsJsonObject("heatIndex");
-		JsonObject windChill = properties.getAsJsonObject("windChill");
-		JsonObject windDirection = properties.getAsJsonObject("windDirection");
-		JsonObject windSpeed = properties.getAsJsonObject("windSpeed");
-		JsonObject windGust = properties.getAsJsonObject("windGust");
-		JsonObject probabilityOfPrecipitation = properties.getAsJsonObject("probabilityOfPrecipitation");
-
-		// Load the WeatherInformation WeatherGridInformation instance variable with the
-		// related values
-		weather.getWeatherGridInformation().forecastedTemp = gson.fromJson(temperature,
-				WeatherGridInformation.ForecastedTemp.class);
-		weather.getWeatherGridInformation().forecastedDewpoint = gson.fromJson(dewpoint,
-				WeatherGridInformation.ForecastedDewpoint.class);
-		weather.getWeatherGridInformation().dailyTemperatureHigh = gson.fromJson(maxTemperature,
-				WeatherGridInformation.DailyTemperatureHigh.class);
-		weather.getWeatherGridInformation().dailyTemperatureLow = gson.fromJson(minTemperature,
-				WeatherGridInformation.DailyTemperatureLow.class);
-		weather.getWeatherGridInformation().forecastedHumidity = gson.fromJson(relativeHumidity,
-				WeatherGridInformation.ForecastedHumidity.class);
-		weather.getWeatherGridInformation().forecastedApparentTemp = gson.fromJson(apparentTemperature,
-				WeatherGridInformation.ForecastedApparentTemp.class);
-		weather.getWeatherGridInformation().forecastedHeatIndex = gson.fromJson(heatIndex,
-				WeatherGridInformation.ForecastedHeatIndex.class);
-		weather.getWeatherGridInformation().forecastedWindChill = gson.fromJson(windChill,
-				WeatherGridInformation.ForecastedWindChill.class);
-		weather.getWeatherGridInformation().forecastedWindDirection = gson.fromJson(windDirection,
-				WeatherGridInformation.ForecastedWindDirection.class);
-		weather.getWeatherGridInformation().forecastedWindSpeed = gson.fromJson(windSpeed,
-				WeatherGridInformation.ForecastedWindSpeed.class);
-		weather.getWeatherGridInformation().forecastedWindGust = gson.fromJson(windGust,
-				WeatherGridInformation.ForecastedWindGust.class);
-		weather.getWeatherGridInformation().forecastedPreciptiationChance = gson.fromJson(probabilityOfPrecipitation,
-				WeatherGridInformation.ForecastedPreciptiationChance.class);
+		String[] jsonObjs = {"temperature", "dewpoint",  "maxTemperature", "minTemperature", "relativeHumidity",
+				"apparentTemperature", "heatIndex", "windChill", "windDirection", "windSpeed", "windGust", 
+				"probabilityOfPrecipitation"};
+		
+		for (int i = 0; i < jsonObjs.length; i++) {
+			JsonObject currObj = properties.getAsJsonObject(jsonObjs[i]);
+			
+			if (currObj != null) {
+				
+				WeatherGridInformation currWeather = gson.fromJson(currObj, WeatherGridInformation.class);
+				
+				if (currWeather.getUom().equals("wmoUnit:degC")) {
+					convertCelsiusToF(currWeather.getValues());
+				}
+								
+				weather.getValuesMap().put(jsonObjs[i],currWeather);				
+			}
+		}
 	}
 
 	/**
@@ -188,7 +167,12 @@ public class JSONReader {
 			if (100 <= conn.getResponseCode() && conn.getResponseCode() <= 399) {
 				br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 			} else {
-				br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+				System.out.println("Error connecting to website");
+				br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+				br.close();
+				conn.disconnect();
+				return null;
+
 			}
 
 			String output = "";
@@ -244,5 +228,22 @@ public class JSONReader {
 			e.printStackTrace();
 		}
 		return null;
+	}
+	
+	private static void convertCelsiusToF(ArrayList<WeatherValues> values) {
+
+		for (WeatherValues wv : values) {
+			double val = wv.getValue();
+			NumberFormat nf = NumberFormat.getNumberInstance();
+			nf.setMaximumFractionDigits(0);
+			nf.setRoundingMode(RoundingMode.HALF_UP);
+		
+			val = (val * 9 / 5) + 32;
+			String converted = nf.format(val);
+			
+			wv.setValue(Double.parseDouble(converted));
+			wv.setIntValue(Integer.parseInt(converted));
+			
+		}
 	}
 }

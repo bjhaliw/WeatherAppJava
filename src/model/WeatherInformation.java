@@ -41,10 +41,12 @@ public class WeatherInformation {
 	// Stores the JSON created WeatherPeriod class containing relevant information
 	private ArrayList<WeatherPeriod> hourlyPeriods, detailedPeriods;
 
+	// Map containing the objects created by the NWS json files
+	HashMap<String, WeatherGridInformation> valuesMap;
+	
 	private ArrayList<String> extendedForecastStrings;
 	private String currentCondition, currentTemp;
 	private String currentLocation, timeZone;
-	private WeatherGridInformation weatherGridInformation;
 	private String location;
 
 	/**
@@ -55,10 +57,10 @@ public class WeatherInformation {
 	 * @throws WeatherJsonError 
 	 */
 	public WeatherInformation(String location) throws WeatherJsonError {
+		this.valuesMap = new HashMap<>();
 		this.currentWeatherDetail = new HashMap<>();
 		this.hourlyPeriods = new ArrayList<>();
 		this.detailedPeriods = new ArrayList<>();
-		this.weatherGridInformation= new WeatherGridInformation();
 		this.location = location;
 	}
 
@@ -73,7 +75,7 @@ public class WeatherInformation {
 		if (location != null && !location.equals("")) {
 			try {
 				// Access API for MapQuest and NWS and return the latlong location
-				String latLong = JSONReader.manipulateJSON(this, location);
+				String latLong = JSONReader.manipulateJSON(this, this.location);
 
 				// Getting the Current Weather Information by scraping the NWS website //
 				String[] latLongList = latLong.split(",");
@@ -152,21 +154,21 @@ public class WeatherInformation {
 	 * @return the currentWeatherDetail
 	 */
 	public HashMap<String, String> getCurrentWeatherDetail() {
-		return currentWeatherDetail;
+		return this.currentWeatherDetail;
 	}
 
 	/**
 	 * @return the currentCondition
 	 */
 	public String getCurrentCondition() {
-		return currentCondition;
+		return this.currentCondition;
 	}
 
 	/**
 	 * @return the currentTemp
 	 */
 	public String getCurrentTemp() {
-		return currentTemp;
+		return this.currentTemp;
 	}
 
 	/**
@@ -180,28 +182,28 @@ public class WeatherInformation {
 	 * @return the hourlyPeriods
 	 */
 	public ArrayList<WeatherPeriod> getHourlyPeriods() {
-		return hourlyPeriods;
+		return this.hourlyPeriods;
 	}
 
 	/**
 	 * @return the detailedPeriods
 	 */
 	public ArrayList<WeatherPeriod> getDetailedPeriods() {
-		return detailedPeriods;
+		return this.detailedPeriods;
 	}
 
 	/**
 	 * @return the extendedForecastStrings
 	 */
 	public ArrayList<String> getExtendedForecastStrings() {
-		return extendedForecastStrings;
+		return this.extendedForecastStrings;
 	}
 
 	/**
 	 * @return the timeZone
 	 */
 	public String getTimeZone() {
-		return timeZone;
+		return this.timeZone;
 	}
 
 	/**
@@ -211,11 +213,13 @@ public class WeatherInformation {
 		this.timeZone = timeZone;
 	}
 
+
 	/**
-	 * @return the weatherGridInformation
+	 * @return the valuesMap
 	 */
-	public WeatherGridInformation getWeatherGridInformation() {
-		return weatherGridInformation;
+	public HashMap<String, WeatherGridInformation> getValuesMap() {
+		return valuesMap;
 	}	
 
+	
 }

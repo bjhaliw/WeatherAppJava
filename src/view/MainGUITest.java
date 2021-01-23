@@ -1,20 +1,11 @@
 package view;
 
-import javafx.scene.Parent;
-import javafx.scene.Scene;
-import javafx.stage.Stage;
-import javafx.util.Duration;
-import model.WeatherInformation;
-
 import java.io.File;
-
 import java.net.SocketTimeoutException;
-
 import java.time.LocalTime;
 import java.util.Random;
 
 import errors.WeatherJsonError;
-
 import javafx.animation.Animation;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
@@ -26,18 +17,39 @@ import javafx.event.EventHandler;
 import javafx.geometry.HPos;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
-import javafx.scene.layout.*;
-import javafx.scene.text.*;
-import javafx.scene.control.*;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Button;
+import javafx.scene.control.ButtonType;
+import javafx.scene.control.Menu;
+import javafx.scene.control.MenuBar;
+import javafx.scene.control.MenuItem;
+import javafx.scene.control.ProgressBar;
+import javafx.scene.control.Separator;
+import javafx.scene.control.Tab;
+import javafx.scene.control.TabPane;
+import javafx.scene.control.TextField;
 import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.TabPane.TabClosingPolicy;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
-
+import javafx.scene.layout.BorderPane;
+import javafx.scene.layout.GridPane;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.StackPane;
+import javafx.scene.layout.VBox;
 import javafx.scene.paint.Color;
+import javafx.scene.text.Font;
+import javafx.scene.text.FontPosture;
+import javafx.scene.text.FontWeight;
+import javafx.scene.text.Text;
+import javafx.stage.Stage;
+import javafx.util.Duration;
+import model.WeatherInformation;
 
-public class MainGUI extends Application {
+public class MainGUITest extends Application {
 
 	WeatherInformation weather;
 	GridPane gpane;
@@ -48,9 +60,7 @@ public class MainGUI extends Application {
 
 	@Override
 	public void start(Stage primaryStage) throws Exception {
-		StackPane pane = new StackPane();
 
-		ImageView view = new ImageView("resources/clear/ocean-3605547_1920.jpg");
 		VBox topBox = new VBox(10);
 		topBox.setAlignment(Pos.TOP_CENTER);
 		TextField zipfield = new TextField();
@@ -103,14 +113,14 @@ public class MainGUI extends Application {
 		zipfield.setOnKeyPressed(e -> {
 			if (e.getCode() == KeyCode.ENTER) {
 				if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-					startThread(view, zipfield, conText, tempText, lastUpdate, location);
+					startThread(zipfield, conText, tempText, lastUpdate, location);
 				}
 			}
 		});
 
 		goButton.setOnAction(e -> {
 			if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+				startThread(zipfield, conText, tempText, lastUpdate, location);
 			}
 		});
 
@@ -144,10 +154,9 @@ public class MainGUI extends Application {
 		BorderPane.setAlignment(lastUpdate, Pos.CENTER);
 		BorderPane.setAlignment(topBox, Pos.CENTER);
 		BorderPane.setAlignment(gpane, Pos.CENTER_RIGHT);
-		pane.getChildren().addAll(view, this.bpane);
 
-		Scene scene = new Scene(pane, 1920, 1000);
-		// scene.getStylesheets().add("Main.css");
+		Scene scene = new Scene(bpane, 1920, 1000);
+		scene.getStylesheets().add("Main.css");
 		primaryStage.setScene(scene);
 		primaryStage.setTitle("Weather App");
 		primaryStage.show();
@@ -221,14 +230,13 @@ public class MainGUI extends Application {
 		}
 	}
 
-	public void startThread(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
-			Text location) {
+	public void startThread(TextField zipfield, Text conText, Text tempText, Text lastUpdate, Text location) {
 
 		Task<Parent> updateWeather = new Task<Parent>() {
 			@Override
 			public Parent call() {
 
-				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+				updateWeatherValues(zipfield, conText, tempText, lastUpdate, location);
 
 				// method to set progress
 				updateProgress(0, 100);
@@ -266,10 +274,8 @@ public class MainGUI extends Application {
 	 * @param tempText   - Text containing the current temperature
 	 * @param lastUpdate - Text containing the date of the information
 	 */
-	private void updateWeatherValues(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
-			Text location) {
+	private void updateWeatherValues(TextField zipfield, Text conText, Text tempText, Text lastUpdate, Text location) {
 		if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-			// System.out.println(zipfield.getText());
 			try {
 
 				this.weather = new WeatherInformation(zipfield.getText());
@@ -291,39 +297,18 @@ public class MainGUI extends Application {
 					Tab temperature = new Tab("Forecasted Temperatures");
 					Tab precip = new Tab("Forecasted Precipitation");
 					Tab humidity = new Tab("Forecasted Humidity");
-					
-					System.out.println("Temperature");
-					temperature.setContent(charts.createAreaChart(weather.getValuesMap().get("temperature").getValues(), 24));
-					System.out.println("Precipitation");
-					precip.setContent(charts.createAreaChart(weather.getValuesMap().get("probabilityOfPrecipitation").getValues(), 24));
-					System.out.println("Humidity");
-					humidity.setContent(charts.createAreaChart(weather.getValuesMap().get("relativeHumidity").getValues(), 24));
 
-					
+					temperature.setContent(
+							charts.createAreaChart(this.weather.getValuesMap().get("temperature").getValues()));
+					precip.setContent(charts.createAreaChart(
+							this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues()));
+					humidity.setContent(
+							charts.createAreaChart(this.weather.getValuesMap().get("relativeHumidity").getValues()));
 					pane.getTabs().addAll(hide, temperature, precip, humidity);
 					pane.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
 					pane.getStylesheets().add("TabPane.css");
 					this.bpane.setCenter(pane);
 				});
-
-				if (this.weather.getCurrentCondition().contains("Cloud")
-						|| this.weather.getCurrentCondition().contains("Overcast")) {
-					view.setImage(getRandomImage("src/resources/cloud"));
-				} else if (this.weather.getCurrentCondition().contains("Sun")
-						|| (this.weather.getCurrentCondition().contains("Fair"))) {
-					view.setImage(getRandomImage("src/resources/sun"));
-				} else if (this.weather.getCurrentCondition().contains("Rain")) {
-					view.setImage(getRandomImage("src/resources/rain"));
-				} else if (this.weather.getCurrentCondition().contains("Clear")) {
-					view.setImage(getRandomImage("src/resources/clear"));
-				} else if (this.weather.getCurrentCondition().contains("Wind")) {
-					view.setImage(getRandomImage("src/resources/wind"));
-				} else if (this.weather.getCurrentCondition().contains("Mist")
-						|| this.weather.getCurrentCondition().contains("Fog")) {
-					view.setImage(getRandomImage("src/resources/fog"));
-				} else if (this.weather.getCurrentCondition().contains("Snow")) {
-					view.setImage(getRandomImage("src/resources/snow"));
-				}
 
 				String high = String
 						.valueOf((int) this.weather.getValuesMap().get("maxTemperature").getValues().get(0).getValue());
@@ -367,27 +352,6 @@ public class MainGUI extends Application {
 		text.setFill(Color.WHITE);
 
 		return text;
-	}
-
-	/**
-	 * Pulls a random image from one of the image directories depending on what the
-	 * condition is (rainy, sunny, etc.)
-	 * 
-	 * @param directory - Current condition directory containing images
-	 * @return - Image object with the selected condition
-	 */
-	private Image getRandomImage(String directory) {
-
-		File cloudDir = new File(directory);
-		File[] pictures = cloudDir.listFiles();
-
-		Random random = new Random();
-		File selectedPic = pictures[random.nextInt(pictures.length - 1)];
-		String s = "file:///" + selectedPic.getAbsolutePath();
-		Image image = new Image(s);
-
-		return image;
-
 	}
 
 	/**
@@ -448,5 +412,4 @@ public class MainGUI extends Application {
 
 		alert.show();
 	}
-
 }
