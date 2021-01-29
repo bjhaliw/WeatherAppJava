@@ -1,16 +1,26 @@
 package view;
 
+import javafx.scene.Group;
+import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
+import javafx.scene.chart.AreaChart;
+import javafx.scene.chart.CategoryAxis;
+import javafx.scene.chart.NumberAxis;
+import javafx.scene.chart.XYChart;
+import javafx.scene.chart.XYChart.Data;
 import javafx.stage.Stage;
 import javafx.util.Duration;
+import model.WeatherGridInformation;
 import model.WeatherInformation;
+import model.WeatherPeriod;
+import model.WeatherValues;
 
-import java.io.File;
-
-import java.net.SocketTimeoutException;
-
+import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Random;
 
 import errors.WeatherJsonError;
@@ -20,215 +30,341 @@ import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Application;
 import javafx.application.Platform;
+import javafx.beans.value.ChangeListener;
+import javafx.beans.value.ObservableValue;
 import javafx.concurrent.Task;
 import javafx.concurrent.WorkerStateEvent;
 import javafx.event.EventHandler;
-import javafx.geometry.HPos;
+import javafx.geometry.Bounds;
+
+import javafx.geometry.Insets;
 import javafx.geometry.Orientation;
 import javafx.geometry.Pos;
 import javafx.scene.layout.*;
 import javafx.scene.text.*;
 import javafx.scene.control.*;
-import javafx.scene.control.Alert.AlertType;
 import javafx.scene.control.TabPane.TabClosingPolicy;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.KeyCode;
-
 import javafx.scene.paint.Color;
 
 public class MainGUI extends Application {
 
-	WeatherInformation weather;
-	GridPane gpane;
-	Text humidity, barometer, dewpoint, windSpeed;
-	Text highAndLowTemp, windChill, heatIndex, visibility;
-	BorderPane bpane;
-	final ProgressBar progressBar = new ProgressBar(0);
+	// Holds all of the weather information
+	private WeatherInformation weather;
+
+	// The text displayed on screen for the GUI
+	private Label precipitation, humidity, windSpeed, highAndLowTemp;
+	private Label currentTemp, clock, shortSummary, currLocation;
+
+	// Progress Bar for the user to see the status of info collection
+	private ProgressBar progressBar;
+
+	// Shows the user the weather status
+	private Image weatherIcon;
+	private ImageView weatherIconView;
+
+	// The main GUI's box
+	private VBox root;
+
+	// TabPane displaying the different charts
+	private TabPane chartPane;
+
+	// HBox displaying the forecasts
+	private HBox sevenDayBox;
+
+	// Thread for the Clock animation
+	Timeline clockThread;
+	LocalTime currentTime;
+
+	private final static int TEXT_SIZE = 14;
+
+	public MainGUI() {
+		this.precipitation = setText("Precipitation: ###%", TEXT_SIZE);
+		this.humidity = setText("Humidity: ###%", TEXT_SIZE);
+		this.windSpeed = setText("Wind Info: N/E/W/S ### mph", TEXT_SIZE);
+		this.highAndLowTemp = setText("High: ##F, Low: ##F", TEXT_SIZE);
+		this.shortSummary = setText("Short Summary of Weather", TEXT_SIZE);
+		this.clock = setText("Clock", TEXT_SIZE + 5);
+		this.currentTemp = setText("##F", TEXT_SIZE + 10);
+		this.currLocation = setText("Current Location", TEXT_SIZE + 10);
+		this.progressBar = new ProgressBar(0);
+		this.weatherIcon = new Image("resources/test_gui/sun.png", 100, 100, false, false);
+		this.weatherIconView = new ImageView(this.weatherIcon);
+		this.root = new VBox(10);
+		this.chartPane = new TabPane();
+		this.sevenDayBox = new HBox(20);
+	}
 
 	@Override
-	public void start(Stage primaryStage) throws Exception {
-		StackPane pane = new StackPane();
+	public void start(Stage primaryStage) {
 
-		ImageView view = new ImageView("resources/clear/ocean-3605547_1920.jpg");
-		VBox topBox = new VBox(10);
-		topBox.setAlignment(Pos.TOP_CENTER);
-		TextField zipfield = new TextField();
-		zipfield.setOpacity(.3);
-		zipfield.setPromptText("Enter Zipcode");
-		Button goButton = new Button("Go");
-		goButton.setOpacity(.5);
+		this.root.setAlignment(Pos.TOP_CENTER);
 
-		Text time = setText("", 36, .8);
-		Text location = setText("Current Location", 24, .8);
-		Text conText = setText("Current Conditions", 24, .8);
-		Text tempText = setText("Current Temperature", 36, .8);
-		Text lastUpdate = setText("Current as of: ", 30, .5);
-		this.highAndLowTemp = setText("High and Low Temp", 24, .8);
-		this.humidity = setText("Humidity", 24, .8);
-		this.barometer = setText("Barometer", 24, .8);
-		this.windSpeed = setText("Wind Speed", 24, .8);
-		this.dewpoint = setText("Dew Point", 24, .8);
-		this.heatIndex = setText("Heat Index", 24, .8);
-		this.windChill = setText("Wind Chill", 24, .8);
-		this.visibility = setText("Visibility", 24, .8);
+		currLocation.setUnderline(true);
+		Label hrsLabel = setText("Next 24 Hours", TEXT_SIZE + 5);
+		hrsLabel.setUnderline(true);
+		Label daysLabel = setText("Extended Forecast", TEXT_SIZE + 5);
+		daysLabel.setUnderline(true);
 
-		HBox weatherInfo = new HBox(30);
-		weatherInfo.setAlignment(Pos.CENTER);
+		Label credits = setText("Brenton Haliw  |  github.com/bjhaliw  |  Powered by the NWS and MapQuest", 10);
 
-		VBox tempAndCondition = new VBox(10);
-		tempAndCondition.setAlignment(Pos.CENTER);
-		tempAndCondition.getChildren().addAll(tempText, conText);
+		this.root.getChildren().addAll(createLocationBox(), new Separator(), currLocation,
+				createCurrentWeatherDetails(), new Separator());
+		this.root.getChildren().addAll(hrsLabel, createTabPane());
+		this.root.getChildren().addAll(daysLabel, createForecastBox(), credits);
 
-		VBox timeAndLocation = new VBox(10);
-		timeAndLocation.setAlignment(Pos.CENTER);
-		timeAndLocation.getChildren().addAll(time, location, lastUpdate);
-
-		VBox otherDetails = new VBox(10);
-		otherDetails.setAlignment(Pos.CENTER_LEFT);
-		otherDetails.getChildren().addAll(this.highAndLowTemp, windSpeed);
-
-		Separator sep1 = new Separator();
-		sep1.setOrientation(Orientation.VERTICAL);
-		Separator sep2 = new Separator();
-		sep2.setOrientation(Orientation.VERTICAL);
-
-		weatherInfo.getChildren().addAll(tempAndCondition, sep1, timeAndLocation, sep2, otherDetails);
-
-		// System clock
-		showClock(time);
-
-		this.progressBar.setOpacity(0.5);
-
-		zipfield.setOnKeyPressed(e -> {
-			if (e.getCode() == KeyCode.ENTER) {
-				if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-					startThread(view, zipfield, conText, tempText, lastUpdate, location);
-				}
-			}
-		});
-
-		goButton.setOnAction(e -> {
-			if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
-			}
-		});
-
-		HBox zipBox = new HBox(10);
-		zipBox.setAlignment(Pos.CENTER_LEFT);
-		zipBox.getChildren().addAll(zipfield, goButton, this.progressBar);
-		topBox.getChildren().addAll(createMenuBar(), zipBox, weatherInfo);
-
-		this.gpane = new GridPane();
-		gpane.setAlignment(Pos.CENTER_RIGHT);
-		gpane.setVgap(40);
-		gpane.add(this.humidity, 0, 0);
-		gpane.add(this.heatIndex, 0, 1);
-		gpane.add(this.windChill, 0, 2);
-		gpane.add(this.dewpoint, 0, 3);
-		gpane.add(this.barometer, 0, 4);
-		gpane.add(this.visibility, 0, 5);
-
-		GridPane.setHalignment(this.humidity, HPos.RIGHT);
-		GridPane.setHalignment(this.heatIndex, HPos.RIGHT);
-		GridPane.setHalignment(this.windChill, HPos.RIGHT);
-		GridPane.setHalignment(this.dewpoint, HPos.RIGHT);
-		GridPane.setHalignment(this.barometer, HPos.RIGHT);
-		GridPane.setHalignment(this.visibility, HPos.RIGHT);
-
-		this.bpane = new BorderPane();
-		this.bpane.setBottom(lastUpdate);
-		this.bpane.setTop(topBox);
-		this.bpane.setRight(gpane);
-
-		BorderPane.setAlignment(lastUpdate, Pos.CENTER);
-		BorderPane.setAlignment(topBox, Pos.CENTER);
-		BorderPane.setAlignment(gpane, Pos.CENTER_RIGHT);
-		pane.getChildren().addAll(view, this.bpane);
-
-		Scene scene = new Scene(pane, 1920, 1000);
-		// scene.getStylesheets().add("Main.css");
+		Scene scene = new Scene(root, 500, 990);
 		primaryStage.setScene(scene);
 		primaryStage.setTitle("Weather App");
+		primaryStage.getScene().getRoot().setStyle("-fx-base:black");
 		primaryStage.show();
 		primaryStage.setOnCloseRequest(e -> System.exit(0));
 	}
 
 	/**
-	 * Creates the menu bar for the Stage
+	 * Creates the top box of the GUI. Contains the TextField for the user to input
+	 * the desired location, a Button to start the weather collection process, and a
+	 * ProgressBar to let the user know that the process is in action.
 	 * 
-	 * @return a MenuBar object
+	 * @return - HBox containing the top part of the GUI
 	 */
-	public MenuBar createMenuBar() {
-		MenuBar menuBar = new MenuBar();
-		menuBar.getStylesheets().add("MenuBar.css");
+	private HBox createLocationBox() {
+		// Contains location field, go button, progress bar
+		HBox locationBox = new HBox(10);
+		locationBox.setAlignment(Pos.CENTER);
+		locationBox.setPadding(new Insets(10, 0, 0, 0));
 
-		// Create Menu for File
-		Menu file = new Menu("File");
-		MenuItem save = new MenuItem("Save");
+		TextField locationField = new TextField();
+		locationField.setPromptText("Enter Location");
+		Button goButton = new Button("Go!");
 
-		MenuItem exit = new MenuItem("Exit");
-
-		// Create Menu for Help
-		Menu help = new Menu("Help");
-		MenuItem learnMore = new MenuItem("How to use");
-		MenuItem about = new MenuItem("About");
-
-		// Load MenuBar with menus
-		menuBar.getMenus().addAll(file, help);
-		file.getItems().addAll(save, exit);
-		help.getItems().addAll(learnMore, about);
-
-		about.setOnAction(e -> {
-			credits();
+		locationField.setOnKeyPressed(e -> {
+			if (e.getCode() == KeyCode.ENTER) {
+				String location = locationField.getText();
+				if (location != null && !location.equals("")) {
+					startThread(locationField);
+				}
+			}
 		});
 
-		learnMore.setOnAction(e -> {
+		goButton.setOnAction(e -> {
+			String location = locationField.getText();
+			if (location != null && !location.equals("")) {
 
+				startThread(locationField);
+			}
 		});
 
-		save.setOnAction(e -> {
-			System.out.println("Save Button pressed");
-		});
+		locationBox.getChildren().addAll(locationField, goButton, this.progressBar);
 
-		exit.setOnAction(e -> {
-			System.exit(0);
-		});
+		return locationBox;
+	}
 
-		return menuBar;
+	private HBox createCurrentWeatherDetails() {
+		// Main box for current weather details
+		HBox weatherInformationBox = new HBox(40);
+		weatherInformationBox.setAlignment(Pos.CENTER);
+
+		// Time, icon and short description
+		VBox weatherSummary = new VBox(20);
+		weatherSummary.setAlignment(Pos.CENTER);
+		weatherSummary.getChildren().addAll(this.clock, this.weatherIconView, this.shortSummary);
+		showClock(this.clock, "America/New_York");
+		// High/Low temp, Precip chance, humidity, wind speed
+		VBox currentWeatherDetails = new VBox(20);
+		currentWeatherDetails.setAlignment(Pos.CENTER_LEFT);
+		currentWeatherDetails.getChildren().addAll(this.currentTemp, this.highAndLowTemp, this.precipitation,
+				this.humidity, this.windSpeed);
+
+		weatherInformationBox.getChildren().addAll(weatherSummary, currentWeatherDetails);
+		return weatherInformationBox;
 	}
 
 	/**
-	 * Updates the weather details box with current information
+	 * Creates a TabPane to display the charts
+	 * 
+	 * @return
 	 */
-	private void getCurrentWeatherDetails() {
-		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
-			this.humidity.setText("Humidity: " + this.weather.getCurrentWeatherDetail().get("Humidity"));
-			this.barometer.setText("Barometric Pressure: \n" + this.weather.getCurrentWeatherDetail().get("Barometer"));
-			this.windSpeed.setText("Wind Speed: " + this.weather.getCurrentWeatherDetail().get("Wind Speed"));
-			this.dewpoint.setText("Dew Point: \n" + this.weather.getCurrentWeatherDetail().get("Dewpoint"));
-			this.windChill.setText("Wind Chill: \n" + this.weather.getCurrentWeatherDetail().get("Wind Chill"));
-			this.heatIndex.setText("Heat Index: \n" + this.weather.getCurrentWeatherDetail().get("Heat Index"));
-			this.visibility.setText("Visibility: \n" + this.weather.getCurrentWeatherDetail().get("Visibility"));
+	private TabPane createTabPane() {
+		Tab tempTab = new Tab("Temperature");
+		Tab precipTab = new Tab("Precipitation");
+		Tab humidityTab = new Tab("Humidity");
+		Tab windTab = new Tab("Wind");
 
-			if (this.weather.getCurrentWeatherDetail().get("Wind Chill") == null) {
-				windChill.setVisible(false);
+		final CategoryAxis xAxis = new CategoryAxis();
+		final NumberAxis yAxis = new NumberAxis();
+		AreaChart<String, Number> chart = new AreaChart<>(xAxis, yAxis);
+		chart.getStylesheets().add("Chart.css");
+
+		XYChart.Series<String, Number> series = new XYChart.Series<>();
+		Random rand = new Random();
+		for (int i = 0; i < 9; i++) {
+			int value = rand.nextInt(5);
+			series.getData().add(new XYChart.Data<>("HH:MM" + i, value));
+		}
+
+		for (Data<String, Number> entry : series.getData()) {
+			entry.nodeProperty().addListener(e -> {
+				displayLabelForData(entry);
+			});
+		}
+
+		yAxis.setVisible(false);
+		yAxis.setTickLabelsVisible(false);
+
+		chart.getData().add(series);
+		chart.setLegendVisible(false);
+		chart.setPrefHeight(400);
+		tempTab.setContent(chart);
+
+		this.chartPane.getTabs().addAll(tempTab, precipTab, humidityTab, windTab);
+		this.chartPane.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
+
+		this.chartPane.tabMinWidthProperty()
+				.bind(this.root.widthProperty().divide(this.chartPane.getTabs().size()).subtract(16));
+		this.chartPane.getStyleClass().add("floating");
+		return this.chartPane;
+	}
+
+	/**
+	 * Helper method for the createTabPane() method. Allows for the creation of text
+	 * to be displayed above each data point for easy reading
+	 * 
+	 * @param data - The data point
+	 */
+	private void displayLabelForData(XYChart.Data<String, Number> data) {
+		final Node node = data.getNode();
+		final Text dataText = new Text(data.getYValue() + "");
+		dataText.setFill(Color.WHITE);
+		node.parentProperty().addListener(new ChangeListener<Parent>() {
+			@Override
+			public void changed(ObservableValue<? extends Parent> ov, Parent oldParent, Parent parent) {
+				Group parentGroup = (Group) parent;
+				parentGroup.getChildren().add(dataText);
+			}
+		});
+
+		node.boundsInParentProperty().addListener(new ChangeListener<Bounds>() {
+			@Override
+			public void changed(ObservableValue<? extends Bounds> ov, Bounds oldBounds, Bounds bounds) {
+				dataText.setLayoutX(Math.round(bounds.getMinX() + bounds.getWidth() / 2 - dataText.prefWidth(-1) / 2));
+				dataText.setLayoutY(Math.round(bounds.getMinY() - dataText.prefHeight(-1) * 0.5));
+			}
+		});
+	}
+
+	/**
+	 * Creates the ScrollPane to show the seven day forecast
+	 * 
+	 * @return
+	 */
+	private ScrollPane createForecastBox() {
+		ScrollPane pane = new ScrollPane();
+		sevenDayBox.setPadding(new Insets(0, 20, 0, 20));
+		sevenDayBox.setAlignment(Pos.CENTER);
+
+		for (int i = 0; i < 7; i++) {
+			VBox box = new VBox();
+			Image icon = new Image("resources/test_gui/sun.png", 50, 50, true, true);
+			Label summary = new Label("Clear");
+			Label temp = new Label("High: 45F, Low: 22F");
+			Label rain = new Label("Precipitation: 45%");
+			Label date = new Label("Monday - January 25");
+			box.getChildren().addAll(date, new ImageView(icon), summary, temp, rain);
+			box.setAlignment(Pos.CENTER);
+			box.setSpacing(10);
+
+			if (i != 6) {
+				Separator sep = new Separator();
+				sep.setOrientation(Orientation.VERTICAL);
+				this.sevenDayBox.getChildren().addAll(box, sep);
+			} else {
+				this.sevenDayBox.getChildren().addAll(box);
 			}
 
-			if (this.weather.getCurrentWeatherDetail().get("Heat Index") == null) {
-				heatIndex.setVisible(false);
+		}
+
+		pane.setPannable(true);
+		pane.setPrefHeight(200);
+		pane.setContent(sevenDayBox);
+		pane.setFitToHeight(true);
+		pane.setStyle("-fx-background-color: -fx-outer-border, -fx-inner-border, -fx-body-color;"
+				+ "-fx-background-insets: 0, 1, 2;" + "-fx-background-radius: 5, 4, 3;");
+		return pane;
+	}
+
+	private void loadForecastBox() {
+		ArrayList<WeatherPeriod> periods = this.weather.getDetailedPeriods();
+
+		this.sevenDayBox.getChildren().clear();
+
+		for (int i = 0; i < periods.size(); i++) {
+			WeatherPeriod currPeriod = periods.get(i);
+
+			VBox box = new VBox();
+			Image icon = new Image(currPeriod.getIcon(), 50, 50, true, true);
+			Label summary = new Label(currPeriod.getShortForecast());
+			Label temp = new Label("Temp: " + currPeriod.getTemperature() + "°F");
+			Label rain = new Label("Precipitation : " + getHighestValue(currPeriod.getStartTime()) + "%");
+			Label date = new Label(currPeriod.getName());
+
+			box.getChildren().addAll(date, new ImageView(icon), summary, temp, rain);
+			box.setAlignment(Pos.CENTER);
+			box.setSpacing(10);
+			box.setPrefWidth(150);
+
+			if (i != periods.size() - 1) {
+				Separator sep = new Separator();
+				sep.setOrientation(Orientation.VERTICAL);
+				this.sevenDayBox.getChildren().addAll(box, sep);
+			} else {
+				this.sevenDayBox.getChildren().addAll(box);
 			}
 		}
 	}
 
-	public void startThread(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
-			Text location) {
+	private String getHighestValue(String date) {
+		double curr, max = Double.MIN_VALUE;
+
+		ArrayList<WeatherValues> values = this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues();
+		for (int i = 0; i < values.size(); i++) {
+			String validTime = values.get(i).getValidTime();
+			if (validTime.substring(0, validTime.indexOf("T")).equals(date.substring(0, date.indexOf("T")))) {
+				curr = values.get(i).getValue();
+				if (curr > max) {
+					max = curr;
+				}
+			}
+		}
+
+		if (max == Double.MIN_VALUE) {
+			max = 0;
+		}
+
+		return (int) max + "";
+	}
+
+	/**
+	 * Starts the main weather information collection phase. Creates a Task for the
+	 * GUI's ProgressBar to keep track of letting the user know the status of the
+	 * collection. Terminates the resulting thread at the end of the weather
+	 * collection phase.
+	 * 
+	 * @param locationField
+	 * @param conText
+	 * @param tempText
+	 * @param lastUpdate
+	 * @param location
+	 */
+	public void startThread(TextField locationField) {
 
 		Task<Parent> updateWeather = new Task<Parent>() {
 			@Override
 			public Parent call() {
 
-				updateWeatherValues(view, zipfield, conText, tempText, lastUpdate, location);
+				updateWeatherValues(locationField);
 
 				// method to set progress
 				updateProgress(0, 100);
@@ -236,7 +372,7 @@ public class MainGUI extends Application {
 				// method to set labeltext
 				updateMessage("All done!");
 
-				return zipfield;
+				return locationField;
 			}
 		};
 
@@ -249,7 +385,7 @@ public class MainGUI extends Application {
 			@Override
 			public void handle(WorkerStateEvent event) {
 				loadingThread.interrupt();
-				System.out.println("Finish");
+				System.out.println("Update Weather Finished");
 
 			}
 		});
@@ -260,95 +396,109 @@ public class MainGUI extends Application {
 	 * Handler for the Go button and zipfield textfield. Updates the values with
 	 * current information
 	 * 
-	 * @param view       - ImageView displaying the background image
-	 * @param zipfield   - TextField containing the zipcode
-	 * @param conText    - Text containing the current condition
-	 * @param tempText   - Text containing the current temperature
-	 * @param lastUpdate - Text containing the date of the information
+	 * @param view          - ImageView displaying the background image
+	 * @param locationField - TextField containing the zipcode
+	 * @param conText       - Text containing the current condition
+	 * @param tempText      - Text containing the current temperature
+	 * @param lastUpdate    - Text containing the date of the information
 	 */
-	private void updateWeatherValues(ImageView view, TextField zipfield, Text conText, Text tempText, Text lastUpdate,
-			Text location) {
-		if (zipfield.getText() != null && !zipfield.getText().equals("")) {
-			// System.out.println(zipfield.getText());
+	private void updateWeatherValues(TextField locationField) {
+		if (locationField.getText() != null && !locationField.getText().equals("")) {
 			try {
+				stopClock();
+				this.weather = new WeatherInformation(locationField.getText());
 
-				this.weather = new WeatherInformation(zipfield.getText());
-
-				this.weather.updateWeather();
-
-				conText.setText(weather.getCurrentCondition());
-				tempText.setText(weather.getCurrentTemp());
-				location.setText(weather.getCurrentLocation());
-				getCurrentWeatherDetails();
-
-				// Needs to be on its own thread or else it won't run
 				Platform.runLater(() -> {
-					Charts charts = new Charts(this.weather);
-					this.bpane.setLeft(charts.createHumidityPrecipitationBarChart());
+					System.out.println(this.weather.getTimeZone());
+					showClock(this.clock, this.weather.getTimeZone());
+					System.out.println(this.clockThread.getCurrentTime());
+					this.currLocation.setText(this.weather.getCurrentLocation());
+					this.shortSummary.setText(this.weather.getHourlyPeriods().get(0).getShortForecast());
 
-					TabPane pane = new TabPane();
-					Tab hide = new Tab("Hide Content");
-					Tab temperature = new Tab("Forecasted Temperatures");
-					Tab precip = new Tab("Forecasted Precipitation");
-					Tab humidity = new Tab("Forecasted Humidity");
-					
-					System.out.println("Temperature");
-					temperature.setContent(charts.createAreaChart(weather.getValuesMap().get("temperature").getValues(), 24));
-					System.out.println("Precipitation");
-					precip.setContent(charts.createAreaChart(weather.getValuesMap().get("probabilityOfPrecipitation").getValues(), 24));
-					System.out.println("Humidity");
-					humidity.setContent(charts.createAreaChart(weather.getValuesMap().get("relativeHumidity").getValues(), 24));
+					this.currentTemp.setText(this.weather.getHourlyPeriods().get(0).getTemperature() + "°F");
 
-					
-					pane.getTabs().addAll(hide, temperature, precip, humidity);
-					pane.setTabClosingPolicy(TabClosingPolicy.UNAVAILABLE);
-					pane.getStylesheets().add("TabPane.css");
-					this.bpane.setCenter(pane);
+					double currHumidity = getCurrentValue(WeatherGridInformation.get24HrValues(
+							this.weather.getValuesMap().get("relativeHumidity").getValues(), this.currentTime,
+							this.weather.getTimeZone()));
+					this.humidity.setText("Humidity: " + (int) currHumidity + "%");
+
+					double currPrecip = getCurrentValue(WeatherGridInformation.get24HrValues(
+							this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues(), this.currentTime,
+							this.weather.getTimeZone()));
+					this.precipitation.setText("Precipitation: " + (int) currPrecip + "%");
+
+					this.currLocation.setText(weather.getCurrentLocation());
+					this.windSpeed.setText("Wind: " + this.weather.getHourlyPeriods().get(0).getWindDirection() + " "
+							+ this.weather.getHourlyPeriods().get(0).getWindSpeed());
+
+					String high = String.valueOf(
+							(int) this.weather.getValuesMap().get("maxTemperature").getValues().get(0).getValue());
+					String low = String.valueOf(
+							(int) this.weather.getValuesMap().get("minTemperature").getValues().get(0).getValue());
+
+					this.highAndLowTemp.setText("High: " + high + "°F, Low: " + low + "°F");
+
+					ArrayList<AreaChart<String, Number>> chartList = Charts
+							.createPeriodAreaCharts(this.weather.getHourlyPeriods());
+
+					this.chartPane.getTabs().get(0).setContent(chartList.get(0));
+					this.chartPane.getTabs().get(1)
+							.setContent(Charts.createAreaChart(
+									this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues(),
+									this.currentTime, this.weather.getTimeZone()));
+					this.chartPane.getTabs().get(2)
+							.setContent(Charts.createAreaChart(
+									this.weather.getValuesMap().get("relativeHumidity").getValues(), this.currentTime,
+									this.weather.getTimeZone()));
+					this.chartPane.getTabs().get(3).setContent(chartList.get(1));
+					this.weatherIcon = new Image(this.weather.getHourlyPeriods().get(0).getIcon(), 100, 100, true,
+							true);
+					this.weatherIconView.setImage(weatherIcon);
+
+					loadForecastBox();
 				});
-
-				if (this.weather.getCurrentCondition().contains("Cloud")
-						|| this.weather.getCurrentCondition().contains("Overcast")) {
-					view.setImage(getRandomImage("src/resources/cloud"));
-				} else if (this.weather.getCurrentCondition().contains("Sun")
-						|| (this.weather.getCurrentCondition().contains("Fair"))) {
-					view.setImage(getRandomImage("src/resources/sun"));
-				} else if (this.weather.getCurrentCondition().contains("Rain")) {
-					view.setImage(getRandomImage("src/resources/rain"));
-				} else if (this.weather.getCurrentCondition().contains("Clear")) {
-					view.setImage(getRandomImage("src/resources/clear"));
-				} else if (this.weather.getCurrentCondition().contains("Wind")) {
-					view.setImage(getRandomImage("src/resources/wind"));
-				} else if (this.weather.getCurrentCondition().contains("Mist")
-						|| this.weather.getCurrentCondition().contains("Fog")) {
-					view.setImage(getRandomImage("src/resources/fog"));
-				} else if (this.weather.getCurrentCondition().contains("Snow")) {
-					view.setImage(getRandomImage("src/resources/snow"));
-				}
-
-				String high = String
-						.valueOf((int) this.weather.getValuesMap().get("maxTemperature").getValues().get(0).getValue());
-				String low = String
-						.valueOf((int) this.weather.getValuesMap().get("minTemperature").getValues().get(0).getValue());
-
-				this.highAndLowTemp.setText("High: " + high + "°F, Low: " + low + "°F");
-
-				lastUpdate.setText("Current as of: " + this.weather.getCurrentWeatherDetail().get("Last update"));
 
 			} catch (WeatherJsonError e) {
 
 				Platform.runLater(() -> {
-					JsonError(e.getMessage());
+					Alerts.JsonError(e.getMessage());
 				});
 
-				e.printStackTrace();
-			} catch (SocketTimeoutException e) {
-				Platform.runLater(() -> {
-					readTimeOut(e.getMessage());
-				});
 				e.printStackTrace();
 			}
 
 		}
+	}
+
+	/**
+	 * Checks to see if the current time matches with the current value
+	 * 
+	 * @param list
+	 * @return
+	 */
+	private double getCurrentValue(ArrayList<WeatherValues> list) {
+		double value = 0;
+		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+		for (WeatherValues currWV : list) {
+			String time = currWV.getValidTime();
+			time = time.replace("T", " ");
+			LocalDateTime date = LocalDateTime.from(df.parse(time));
+
+			LocalTime validTime = date.toLocalTime();
+
+			int currHr = currentTime.getHour();
+			int valHr = validTime.getHour();
+
+			if (currHr == valHr) {
+				System.out.println("Same Hour!");
+				System.out.println(validTime);
+				System.out.println(currentTime);
+				value = currWV.getValue();
+			}
+
+		}
+
+		return value;
 	}
 
 	/**
@@ -359,35 +509,10 @@ public class MainGUI extends Application {
 	 * @param strokeWidth - How wide the text stroke should be
 	 * @return - JavaFX Text Object
 	 */
-	private Text setText(String string, int fontSize, double strokeWidth) {
-		Text text = new Text(string);
+	private Label setText(String string, int fontSize) {
+		Label text = new Label(string);
 		text.setFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, fontSize));
-		text.setStrokeWidth(strokeWidth);
-		text.setStroke(Color.BLACK);
-		text.setFill(Color.WHITE);
-
 		return text;
-	}
-
-	/**
-	 * Pulls a random image from one of the image directories depending on what the
-	 * condition is (rainy, sunny, etc.)
-	 * 
-	 * @param directory - Current condition directory containing images
-	 * @return - Image object with the selected condition
-	 */
-	private Image getRandomImage(String directory) {
-
-		File cloudDir = new File(directory);
-		File[] pictures = cloudDir.listFiles();
-
-		Random random = new Random();
-		File selectedPic = pictures[random.nextInt(pictures.length - 1)];
-		String s = "file:///" + selectedPic.getAbsolutePath();
-		Image image = new Image(s);
-
-		return image;
-
 	}
 
 	/**
@@ -395,11 +520,27 @@ public class MainGUI extends Application {
 	 * 
 	 * @param time - Text object to be manipulated to show the time
 	 */
-	private void showClock(Text time) {
-		Timeline clock = new Timeline(new KeyFrame(Duration.ZERO, e -> {
-			LocalTime currentTime = LocalTime.now();
-			String min = "" + currentTime.getMinute();
-			String sec = "" + currentTime.getSecond();
+	private void showClock(Label time, String timeZone) {
+		currentTime = LocalTime.now(ZoneId.of(timeZone));
+		this.clockThread = new Timeline(new KeyFrame(Duration.ZERO, e -> {
+
+			String hr = currentTime.getHour() + "";
+			String min = currentTime.getMinute() + "";
+			String sec = currentTime.getSecond() + "";
+			String am_pm = "";
+
+			if (currentTime.getHour() == 12) {
+				am_pm = "PM";
+			} else if (currentTime.getHour() == 0) {
+				hr = "12";
+				am_pm = "AM";
+			} else if (currentTime.getHour() > 12) {
+				int temp = currentTime.getHour() - 12;
+				hr = temp + "";
+				am_pm = "PM";
+			} else {
+				am_pm = "AM";
+			}
 
 			if (currentTime.getMinute() < 10) {
 				min = "0" + currentTime.getMinute();
@@ -408,45 +549,19 @@ public class MainGUI extends Application {
 			if (currentTime.getSecond() < 10) {
 				sec = "0" + currentTime.getSecond();
 			}
-
-			time.setText(currentTime.getHour() + ":" + min + ":" + sec);
+			time.setText(hr + ":" + min + ":" + sec + " " + am_pm);
 		}), new KeyFrame(Duration.seconds(1)));
-		clock.setCycleCount(Animation.INDEFINITE);
-		clock.play();
+		this.clockThread.setCycleCount(Animation.INDEFINITE);
+		this.clockThread.play();
+
+	}
+
+	private void stopClock() {
+		this.clockThread.stop();
 	}
 
 	public static void main(String[] args) {
 		launch(args);
-	}
-
-	private void JsonError(String message) {
-		Alert alert = new Alert(AlertType.INFORMATION,
-				"An error has occured when trying to read the JSON file for the requested location.\n"
-						+ "The error message is as follows:\n" + message,
-				ButtonType.OK);
-		alert.setTitle("Error Reading JSON File");
-		alert.setHeaderText("JSON Error");
-
-		alert.show();
-	}
-
-	private void readTimeOut(String message) {
-		Alert alert = new Alert(AlertType.INFORMATION,
-				"The Weather Application has failed to read from the required website\n" + "The message is: " + message,
-				ButtonType.OK);
-		alert.setTitle("Read Process has Timed Out");
-		alert.setHeaderText("Timed Out");
-
-		alert.show();
-	}
-
-	private void credits() {
-		Alert alert = new Alert(AlertType.INFORMATION,
-				"Created by Brenton Haliw\nBrenton.Haliw@gmail.com\nhttps://www.github.com/bjhaliw", ButtonType.OK);
-		alert.setTitle("Credits");
-		alert.setHeaderText("Thank you for trying me!");
-
-		alert.show();
 	}
 
 }

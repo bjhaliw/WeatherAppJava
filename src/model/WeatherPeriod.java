@@ -13,6 +13,7 @@ public class WeatherPeriod {
 	private String temperature, temperatureUnit;
 	private String windSpeed, windDirection;
 	private String shortForecast, detailedForecast;
+	private String icon;
 	private boolean isDayTime;
 
 	/**
@@ -167,6 +168,13 @@ public class WeatherPeriod {
 	 */
 	public void setDayTime(boolean isDayTime) {
 		this.isDayTime = isDayTime;
+	}
+
+	/**
+	 * @return the icon
+	 */
+	public String getIcon() {
+		return icon;
 	}
 
 }

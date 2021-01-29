@@ -8,6 +8,9 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.DecimalFormat;
 import java.text.NumberFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 
 import org.jsoup.Jsoup;
@@ -20,8 +23,6 @@ import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 
 import errors.WeatherJsonError;
-import javafx.concurrent.Task;
-import javafx.scene.Parent;
 
 public class JSONReader {
 
@@ -37,30 +38,44 @@ public class JSONReader {
 	public static String manipulateJSON(WeatherInformation weather, String location) throws WeatherJsonError {
 		Gson gson = new Gson();
 
-		// Gets the LatLong with the MapQuest API String latLong =
+		// Gets the LatLong with the MapQuest API String
 		String latLong = getLatLong(location);
+		System.out.println("Lat Long: " + latLong);
 
-		// Use NWS API to get initial JSON // String initialJson =
+		// Use NWS API to get initial JSON //
 		String initialJson = readUrl(WeatherInformation.NWS_API_URL + latLong);
 		JsonObject obj = JsonParser.parseString(initialJson).getAsJsonObject();
 		JsonObject properties = obj.getAsJsonObject("properties");
 
-		// Getting the Time Zone to change the GUI Clock // JsonPrimitive timeZone =
+		// Getting the Time Zone to change the GUI Clock //
 		JsonPrimitive timeZone = properties.getAsJsonPrimitive("timeZone");
 		String timeZoneString = gson.fromJson(timeZone, String.class);
 		weather.setTimeZone(timeZoneString);
 
-		// Getting the Regular Forecast for the requested location // JsonPrimitive
+		// Getting the Location of the Request //
+		JsonObject relativeLocation = properties.getAsJsonObject("relativeLocation");
+		JsonObject locationProperties = relativeLocation.getAsJsonObject("properties");
+		JsonPrimitive city = locationProperties.getAsJsonPrimitive("city");
+		JsonPrimitive state = locationProperties.getAsJsonPrimitive("state");
+		String cityString = city.toString();
+		String stateString = state.toString();
+		cityString = cityString.replaceAll("\"", "");
+		stateString = stateString.replaceAll("\"", "");
+		System.out.println(cityString + ", " + stateString);
+
+		weather.setCurrentLocation(cityString + ", " + stateString);
+
+		// Getting the Regular Forecast for the requested location //
 		JsonPrimitive regForecast = properties.getAsJsonPrimitive("forecast");
 		String regForecastURL = gson.fromJson(regForecast, String.class);
 		jsonHourlyAndRegularForecast(weather.getDetailedPeriods(), regForecastURL);
 
-		// Getting the Hourly Forecast for the requested location // JsonPrimitive
+		// Getting the Hourly Forecast for the requested location //
 		JsonPrimitive hourlyForecast = properties.getAsJsonPrimitive("forecastHourly");
 		String hourlyForecastURL = gson.fromJson(hourlyForecast, String.class);
 		jsonHourlyAndRegularForecast(weather.getHourlyPeriods(), hourlyForecastURL);
 
-		// Getting Forecast Grid Data for the requested location // JsonPrimitive
+		// Getting Forecast Grid Data for the requested location //
 		JsonPrimitive gridForecast = properties.getAsJsonPrimitive("forecastGridData");
 		String gridForecastURL = gson.fromJson(gridForecast, String.class);
 		jsonGridForecast(weather, gridForecastURL);
@@ -83,24 +98,45 @@ public class JSONReader {
 		// Create an object based on the .json properties object
 		JsonObject properties = obj.getAsJsonObject("properties");
 
-		String[] jsonObjs = {"temperature", "dewpoint",  "maxTemperature", "minTemperature", "relativeHumidity",
-				"apparentTemperature", "heatIndex", "windChill", "windDirection", "windSpeed", "windGust", 
-				"probabilityOfPrecipitation"};
-		
+		String[] jsonObjs = { "temperature", "dewpoint", "maxTemperature", "minTemperature", "relativeHumidity",
+				"apparentTemperature", "heatIndex", "windChill", "windDirection", "windSpeed", "windGust",
+				"probabilityOfPrecipitation" };
+
 		for (int i = 0; i < jsonObjs.length; i++) {
 			JsonObject currObj = properties.getAsJsonObject(jsonObjs[i]);
-			
+
 			if (currObj != null) {
-				
+
 				WeatherGridInformation currWeather = gson.fromJson(currObj, WeatherGridInformation.class);
-				
+
+				// Convert values from celsius to fahrenheit if required
 				if (currWeather.getUom().equals("wmoUnit:degC")) {
 					convertCelsiusToF(currWeather.getValues());
 				}
-								
-				weather.getValuesMap().put(jsonObjs[i],currWeather);				
+
+				// Convert UTC time to timezone unfortunately
+				for (WeatherValues wv : currWeather.getValues()) {
+					String time = wv.getValidTime();
+					String duration = time.substring(time.lastIndexOf("/") + 1);
+
+					time = time.substring(0, time.lastIndexOf("/"));
+					time = time.replace("+00:00", "Z");
+
+					Instant timestamp = Instant.parse(time);
+					ZonedDateTime losAngelesTime = timestamp.atZone(ZoneId.of(weather.getTimeZone()));
+					System.out.println(losAngelesTime);
+
+					String newTime = losAngelesTime.toString();
+					newTime = newTime.replace("weather.getTimeZone()", "/" + duration);
+
+					System.out.println(newTime);
+
+				}
+
+				weather.getValuesMap().put(jsonObjs[i], currWeather);
 			}
 		}
+
 	}
 
 	/**
@@ -156,7 +192,7 @@ public class JSONReader {
 	 * @param urlString - Website to be accessed
 	 * @return - String representing the website's contents
 	 */
-	private static synchronized String readUrl(String urlString) {
+	private static String readUrl(String urlString) {
 		try {
 			URL url = new URL(urlString);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -229,7 +265,12 @@ public class JSONReader {
 		}
 		return null;
 	}
-	
+
+	/**
+	 * Used to convert celsius values to fahrenheit
+	 * 
+	 * @param values
+	 */
 	private static void convertCelsiusToF(ArrayList<WeatherValues> values) {
 
 		for (WeatherValues wv : values) {
@@ -237,13 +278,14 @@ public class JSONReader {
 			NumberFormat nf = NumberFormat.getNumberInstance();
 			nf.setMaximumFractionDigits(0);
 			nf.setRoundingMode(RoundingMode.HALF_UP);
-		
+
 			val = (val * 9 / 5) + 32;
 			String converted = nf.format(val);
-			
+
 			wv.setValue(Double.parseDouble(converted));
 			wv.setIntValue(Integer.parseInt(converted));
-			
+
 		}
 	}
+
 }

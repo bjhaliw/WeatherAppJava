@@ -1,7 +1,7 @@
 package view;
 
-import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 
@@ -12,18 +12,15 @@ import javafx.scene.Group;
 import javafx.scene.Node;
 import javafx.scene.Parent;
 import javafx.scene.chart.AreaChart;
-import javafx.scene.chart.BarChart;
 import javafx.scene.chart.CategoryAxis;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.XYChart;
 import javafx.scene.chart.XYChart.Data;
-import javafx.scene.control.Tooltip;
 import javafx.scene.paint.Color;
-import javafx.scene.text.Font;
-import javafx.scene.text.FontPosture;
-import javafx.scene.text.FontWeight;
 import javafx.scene.text.Text;
+import model.WeatherGridInformation;
 import model.WeatherInformation;
+import model.WeatherPeriod;
 import model.WeatherValues;
 
 public class Charts {
@@ -34,141 +31,175 @@ public class Charts {
 	}
 
 	/**
-	 * Creates a BarChart displaying the humidity and precipitation chance
+	 * Creates a chart associated with the WeatherPeriod object
+	 * 
+	 * @param list - A list of WeatherPeriods
+	 * @return - ArrayList containing AreaCharts
 	 */
-	@SuppressWarnings({ "rawtypes", "unchecked" })
-	protected BarChart<String, Number> createHumidityPrecipitationBarChart() {
-		final CategoryAxis xAxis = new CategoryAxis();
-		final NumberAxis yAxis = new NumberAxis(0, 100, 10);
-		yAxis.setTickLabelFill(Color.WHITE);
-		xAxis.setTickLabelFill(Color.WHITE);
-		yAxis.setTickLabelFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 12));
-		xAxis.setTickLabelFont(Font.font("Arial", FontWeight.BOLD, FontPosture.REGULAR, 12));
-		final BarChart<String, Number> bc = new BarChart<>(xAxis, yAxis);
-		bc.setPrefWidth(100);
-		bc.setTitle("Humidity/Precipitation");
-		bc.lookup(".chart-title").setStyle(
-				"-fx-text-fill: white; -fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.3), 10, 0.5, 0.0, 0.0);");
-		bc.lookup(".chart-plot-background").setStyle("-fx-background-color: transparent;");
-		bc.setLegendVisible(false);
+	protected static ArrayList<AreaChart<String, Number>> createPeriodAreaCharts(ArrayList<WeatherPeriod> list) {
+		ArrayList<AreaChart<String, Number>> chartList = new ArrayList<>();
 
-		if (this.weather != null && this.weather.getCurrentWeatherDetail() != null) {
-			String hum = this.weather.getCurrentWeatherDetail().get("Humidity").replace("%", "");
-			Number num = Integer.parseInt(hum);
-			XYChart.Series series1 = new XYChart.Series();
-			series1.getData().add(new XYChart.Data("Humidity", num));
+		for (int j = 0; j < 2; j++) {
+			final CategoryAxis xAxis = new CategoryAxis();
+			final NumberAxis yAxis = new NumberAxis();
+			AreaChart<String, Number> chart = new AreaChart<>(xAxis, yAxis);
+			yAxis.setVisible(false);
+			yAxis.setTickLabelsVisible(false);
+			chart.getStylesheets().add("Chart.css");
+			XYChart.Series<String, Number> series = new XYChart.Series<>();
 
-			XYChart.Series series2 = new XYChart.Series();
-			String rain = this.weather.getDetailedPeriods().get(0).getDetailedForecast();
+			double maxValue = Double.MIN_VALUE;
+			double minValue = Double.MAX_VALUE;
+			DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+			String am_pm = "";
+			for (int i = 0; i < list.size() && i < 24; i += 3) {
+				WeatherPeriod currWP = list.get(i);
 
-			if (rain.indexOf("Chance of precipitation is ") != -1) {
-				rain = rain.substring(rain.indexOf("Chance of precipitation is "));
-				rain = rain.substring("Chance of precipitation is ".length());
-				rain = rain.replace("%", "");
-				rain = rain.replace(".", "");
-				rain = rain.replaceAll("\\D+", "");
-				Number precip = Double.parseDouble(rain);
-				series2.getData().add(new XYChart.Data("Preceipitation", precip));
-			} else {
-				series2.getData().add(new XYChart.Data("Preceipitation", 0));
+				String time = currWP.getStartTime();
+				time = time.replace("T", " ");
+				time = time.substring(0, time.lastIndexOf("-"));
+
+				LocalDateTime date = LocalDateTime.from(df.parse(time));
+
+				int hours = date.getHour();
+				if (hours > 12) {
+					hours -= 12;
+					am_pm = "pm";
+				} else if (hours == 12) {
+					am_pm = "pm";
+				} else if (hours == 0) {
+					hours = 12;
+					am_pm = "am";
+				} else {
+					am_pm = "am";
+				}
+
+				int val;
+				if (j == 0) {
+					val = Integer.parseInt(currWP.getTemperature());
+				} else {
+					String wind = currWP.getWindSpeed();
+					wind = wind.substring(0, wind.indexOf(" "));
+					val = Integer.parseInt(wind);
+				}
+				series.getData().add(new XYChart.Data<>(hours + " " + am_pm, val));
+
+				if (val > maxValue) {
+					maxValue = val;
+				}
+
+				if (val < minValue) {
+					minValue = val;
+				}
+
+				System.out.println("Max Value: " + maxValue + ", Min Value: " + minValue);
 			}
 
-			// System.out.println(rain);
+			for (Data<String, Number> entry : series.getData()) {
+				entry.nodeProperty().addListener(e -> {
+					displayLabelForData(entry);
+				});
+			}
 
-			bc.getData().addAll(series1, series2);
-			bc.lookup(".default-color0.chart-bar").setStyle("-fx-bar-fill: green;");
-			bc.lookup(".default-color1.chart-bar").setStyle("-fx-bar-fill: blue;");
-			bc.setVerticalGridLinesVisible(false);
-			bc.setHorizontalGridLinesVisible(false);
+			System.out.println("Final Max Value: " + maxValue + ", Min Value: " + minValue);
+			if (maxValue != Double.MIN_VALUE && minValue != Double.MAX_VALUE) {
+				yAxis.setAutoRanging(false);
+				yAxis.setUpperBound(maxValue + 2);
+				yAxis.setLowerBound(minValue - 2);
+				yAxis.setTickUnit(1);
+			}
 
-			return bc;
+			chart.getData().addAll(series);
+			chart.setPrefHeight(245);
+			chart.setLegendVisible(false);
 
+			chartList.add(chart);
 		}
 
-		return null;
+		return chartList;
 	}
 
-	protected AreaChart<String, Number> createAreaChart(ArrayList<WeatherValues> list, int timeLength) {
+	protected static AreaChart<String, Number> createAreaChart(ArrayList<WeatherValues> list, LocalTime currentTime,
+			String timeZone) {
 		final CategoryAxis xAxis = new CategoryAxis();
 		final NumberAxis yAxis = new NumberAxis();
 		AreaChart<String, Number> chart = new AreaChart<>(xAxis, yAxis);
 
-		XYChart.Series<String, Number> series = new XYChart.Series();
-		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+		// Clear the Y axis
+		yAxis.setVisible(false);
+		yAxis.setTickLabelsVisible(false);
+		chart.getStylesheets().add("Chart.css");
+		chart.setLegendVisible(false);
+
+		XYChart.Series<String, Number> series = new XYChart.Series<>();
+
 		double maxValue = Double.MIN_VALUE;
 		double minValue = Double.MAX_VALUE;
-		int counter = 0;
+		String am_pm = "";
 		boolean breakOut = false;
-		for (int i = 0; i < list.size(); i++) {
+		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+		ArrayList<WeatherValues> newList = WeatherGridInformation.get24HrValues(list, currentTime, timeZone);
+
+		for (int i = 0; i < newList.size() && i < 24; i += 3) {
 			if (breakOut) {
 				break;
 			}
 
-			WeatherValues currWV = list.get(i);
-			System.out.println(currWV.getValue());
-			// Getting the duration that the forecast value is good for
-			String durationString = currWV.getValidTime().substring(currWV.getValidTime().indexOf("/") + 1);
-			Duration dur = Duration.parse(durationString);
-			int hours = (int) dur.toHours(); // How many hours the forecast is good for
+			WeatherValues currWV = newList.get(i);
 
 			// Getting the current value time
-			String time = currWV.getValidTime().substring(0, currWV.getValidTime().indexOf("+"));
-			time = time.substring(0, time.lastIndexOf(":"));
+			String time = currWV.getValidTime();
 			time = time.replace("T", " ");
 			LocalDateTime date = LocalDateTime.from(df.parse(time));
+			int hours = date.getHour();
 
-
-			// While the forecasted values are good
-			while (hours > 0) {
-				series.getData().add(new XYChart.Data(date.toString(), currWV.getValue()));
-				date = date.plusHours(1);
-				hours--;
-				counter++;
-				if (counter > timeLength) {
-					breakOut = true;
-					break;
-				}
+			if (hours > 12) {
+				hours -= 12;
+				am_pm = "pm";
+			} else if (hours == 12) {
+				am_pm = "pm";
+			} else {
+				am_pm = "am";
 			}
-			
 
+			series.getData().add(new XYChart.Data<>(hours + " " + am_pm, (int) currWV.getValue()));
 			double val = currWV.getValue();
 			if (val > maxValue) {
 				maxValue = val;
-			} 
-			
+			}
+
 			if (val < minValue) {
 				minValue = val;
 			}
-			
-			System.out.println("Max Value: " + maxValue + ", Min Value: " + minValue);
 		}
-		
+
 		for (Data<String, Number> entry : series.getData()) {
 			entry.nodeProperty().addListener(e -> {
 				displayLabelForData(entry);
 			});
 		}
 
-
-		System.out.println("Final Max Value: " + maxValue + ", Min Value: " + minValue);
 		if (maxValue != Double.MIN_VALUE && minValue != Double.MAX_VALUE) {
 			yAxis.setAutoRanging(false);
-			yAxis.setUpperBound(maxValue + 2);
+			yAxis.setUpperBound(maxValue + 5);
 			yAxis.setLowerBound(minValue - 2);
 			yAxis.setTickUnit(1);
 		}
 
 		chart.getData().addAll(series);
 
-		chart.setLegendVisible(false);
-		chart.getStylesheets().add("AreaChart.css");
-
 		return chart;
 	}
 
-	private void displayLabelForData(XYChart.Data<String, Number> data) {
+	/**
+	 * Creates text to be displayed above each point to easily show the value
+	 * 
+	 * @param data - The current point on the chart
+	 */
+	private static void displayLabelForData(XYChart.Data<String, Number> data) {
 		final Node node = data.getNode();
 		final Text dataText = new Text(data.getYValue() + "");
+		dataText.setFill(Color.WHITE);
 		node.parentProperty().addListener(new ChangeListener<Parent>() {
 			@Override
 			public void changed(ObservableValue<? extends Parent> ov, Parent oldParent, Parent parent) {
