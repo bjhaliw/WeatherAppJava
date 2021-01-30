@@ -47,26 +47,20 @@ public class WeatherGridInformation {
 	 * @param oldList
 	 * @return
 	 */
-	public static ArrayList<WeatherValues> get24HrValues(ArrayList<WeatherValues> oldList, LocalTime currentTime,
-			String timeZone) {
+	public static ArrayList<WeatherValues> get24HrValues(ArrayList<WeatherValues> oldList, LocalTime currentTime) {
 		ArrayList<WeatherValues> newList = new ArrayList<>();
-		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
+		DateTimeFormatter df = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 
+		/**
+		 * Convert all durations to individual times
+		 */
 		for (WeatherValues currWV : oldList) {
-
-			if (newList.size() >= 24) {
-				break;
-			}
-
 			// Get the duration of the valid time (PT2H -> 2 hours)
 			String durationString = currWV.getValidTime().substring(currWV.getValidTime().indexOf("/") + 1);
 			Duration dur = Duration.parse(durationString);
 			int hours = (int) dur.toHours(); // How many hours the forecast is good for
 
-			// Getting the current value time
-			String time = currWV.getValidTime().substring(0, currWV.getValidTime().indexOf("+"));
-			time = time.substring(0, time.lastIndexOf(":"));
-			time = time.replace("T", " ");
+			String time = currWV.getValidTime().substring(0, currWV.getValidTime().indexOf("/"));
 			LocalDateTime date = LocalDateTime.from(df.parse(time));
 
 			while (hours > 0) {
@@ -80,7 +74,26 @@ public class WeatherGridInformation {
 			}
 		}
 
-		return newList;
+		ArrayList<WeatherValues> temp = (ArrayList<WeatherValues>) newList.clone();
+		df = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
+		for (WeatherValues currWV : temp) {
+			// Getting the current value time
+			LocalDateTime date = LocalDateTime.from(df.parse(currWV.getValidTime()));
+			if (date.toLocalTime().compareTo(currentTime) < 0) {
+				if (date.getHour() != currentTime.getHour()) {
+					newList.remove(currWV);
+				}
+			} else {
+				break;
+			}
+		}
+
+		ArrayList<WeatherValues> outputList = new ArrayList<>();
+		for (int i = 0; i <= 24; i++) {
+			outputList.add(newList.get(i));
+		}
+
+		return outputList;
 	}
 
 }

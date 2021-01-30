@@ -50,17 +50,16 @@ public class Charts {
 
 			double maxValue = Double.MIN_VALUE;
 			double minValue = Double.MAX_VALUE;
-			DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+			DateTimeFormatter df = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
 			String am_pm = "";
 			for (int i = 0; i < list.size() && i < 24; i += 3) {
 				WeatherPeriod currWP = list.get(i);
 
 				String time = currWP.getStartTime();
-				time = time.replace("T", " ");
-				time = time.substring(0, time.lastIndexOf("-"));
+				System.out.println(time);
 
 				LocalDateTime date = LocalDateTime.from(df.parse(time));
-
+				
 				int hours = date.getHour();
 				if (hours > 12) {
 					hours -= 12;
@@ -92,7 +91,7 @@ public class Charts {
 					minValue = val;
 				}
 
-				System.out.println("Max Value: " + maxValue + ", Min Value: " + minValue);
+				//System.out.println("Max Value: " + maxValue + ", Min Value: " + minValue);
 			}
 
 			for (Data<String, Number> entry : series.getData()) {
@@ -101,7 +100,7 @@ public class Charts {
 				});
 			}
 
-			System.out.println("Final Max Value: " + maxValue + ", Min Value: " + minValue);
+			//System.out.println("Final Max Value: " + maxValue + ", Min Value: " + minValue);
 			if (maxValue != Double.MIN_VALUE && minValue != Double.MAX_VALUE) {
 				yAxis.setAutoRanging(false);
 				yAxis.setUpperBound(maxValue + 2);
@@ -119,8 +118,7 @@ public class Charts {
 		return chartList;
 	}
 
-	protected static AreaChart<String, Number> createAreaChart(ArrayList<WeatherValues> list, LocalTime currentTime,
-			String timeZone) {
+	protected static AreaChart<String, Number> createAreaChart(ArrayList<WeatherValues> list, LocalTime currentTime) {
 		final CategoryAxis xAxis = new CategoryAxis();
 		final NumberAxis yAxis = new NumberAxis();
 		AreaChart<String, Number> chart = new AreaChart<>(xAxis, yAxis);
@@ -138,14 +136,13 @@ public class Charts {
 		String am_pm = "";
 		boolean breakOut = false;
 		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-		ArrayList<WeatherValues> newList = WeatherGridInformation.get24HrValues(list, currentTime, timeZone);
 
-		for (int i = 0; i < newList.size() && i < 24; i += 3) {
+		for (int i = 0; i < list.size() && i < 24; i += 3) {
 			if (breakOut) {
 				break;
 			}
 
-			WeatherValues currWV = newList.get(i);
+			WeatherValues currWV = list.get(i);
 
 			// Getting the current value time
 			String time = currWV.getValidTime();
@@ -158,6 +155,9 @@ public class Charts {
 				am_pm = "pm";
 			} else if (hours == 12) {
 				am_pm = "pm";
+			} else if (hours == 0) {
+				hours = 12;
+				am_pm = "am";
 			} else {
 				am_pm = "am";
 			}

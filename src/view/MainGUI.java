@@ -78,6 +78,7 @@ public class MainGUI extends Application {
 	Timeline clockThread;
 	LocalTime currentTime;
 
+	// Text size for most of the labels present in the GUI
 	private final static int TEXT_SIZE = 14;
 
 	public MainGUI() {
@@ -162,19 +163,26 @@ public class MainGUI extends Application {
 		return locationBox;
 	}
 
+	/**
+	 * Creates the portion of the GUI containing the current weather details. The
+	 * box contains information such as the time, current temperature, the high/low
+	 * temperature, wind speed/direction, and other useful information.
+	 * 
+	 * @return - HBox containing the current weather details
+	 */
 	private HBox createCurrentWeatherDetails() {
 		// Main box for current weather details
 		HBox weatherInformationBox = new HBox(40);
 		weatherInformationBox.setAlignment(Pos.CENTER);
 
 		// Time, icon and short description
-		VBox weatherSummary = new VBox(20);
+		VBox weatherSummary = new VBox(15);
 		weatherSummary.setAlignment(Pos.CENTER);
 		weatherSummary.getChildren().addAll(this.clock, this.weatherIconView, this.shortSummary);
 		showClock(this.clock, "America/New_York");
 		// High/Low temp, Precip chance, humidity, wind speed
 		VBox currentWeatherDetails = new VBox(20);
-		currentWeatherDetails.setAlignment(Pos.CENTER_LEFT);
+		currentWeatherDetails.setAlignment(Pos.CENTER);
 		currentWeatherDetails.getChildren().addAll(this.currentTemp, this.highAndLowTemp, this.precipitation,
 				this.humidity, this.windSpeed);
 
@@ -295,6 +303,11 @@ public class MainGUI extends Application {
 		return pane;
 	}
 
+	/**
+	 * Loads the bottom portion of the GUI with forecast boxes. These boxes contain
+	 * information for the periods such as the day, icon, temperature, and
+	 * precipitation chance.
+	 */
 	private void loadForecastBox() {
 		ArrayList<WeatherPeriod> periods = this.weather.getDetailedPeriods();
 
@@ -307,13 +320,12 @@ public class MainGUI extends Application {
 			Image icon = new Image(currPeriod.getIcon(), 50, 50, true, true);
 			Label summary = new Label(currPeriod.getShortForecast());
 			Label temp = new Label("Temp: " + currPeriod.getTemperature() + "°F");
-			Label rain = new Label("Precipitation : " + getHighestValue(currPeriod.getStartTime()) + "%");
+			Label rain = new Label("Precipitation : " + getHighestPrecipValue(currPeriod.getStartTime()) + "%");
 			Label date = new Label(currPeriod.getName());
-
 			box.getChildren().addAll(date, new ImageView(icon), summary, temp, rain);
 			box.setAlignment(Pos.CENTER);
 			box.setSpacing(10);
-			box.setPrefWidth(150);
+			Tooltip.install(box, new Tooltip(currPeriod.getDetailedForecast()));
 
 			if (i != periods.size() - 1) {
 				Separator sep = new Separator();
@@ -325,7 +337,16 @@ public class MainGUI extends Application {
 		}
 	}
 
-	private String getHighestValue(String date) {
+	/**
+	 * Helper method for the loadForecastBox() method. Gets the highest
+	 * precipitation chance value for the day by looping through each hourly period.
+	 * 
+	 * @param date - String value representing the date to find the highest
+	 *             precipitation chance
+	 * @return - String value representing the highest probability of precipitation
+	 *         for given date
+	 */
+	private String getHighestPrecipValue(String date) {
 		double curr, max = Double.MIN_VALUE;
 
 		ArrayList<WeatherValues> values = this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues();
@@ -405,32 +426,36 @@ public class MainGUI extends Application {
 	private void updateWeatherValues(TextField locationField) {
 		if (locationField.getText() != null && !locationField.getText().equals("")) {
 			try {
-				stopClock();
+				this.clockThread.stop();
 				this.weather = new WeatherInformation(locationField.getText());
 
 				Platform.runLater(() -> {
 					System.out.println(this.weather.getTimeZone());
 					showClock(this.clock, this.weather.getTimeZone());
-					System.out.println(this.clockThread.getCurrentTime());
+
+					WeatherInformation.removeOldValues(this.weather.getHourlyPeriods(), currentTime);
+
+					// Updating the top portion of the GUI with current weather information
 					this.currLocation.setText(this.weather.getCurrentLocation());
 					this.shortSummary.setText(this.weather.getHourlyPeriods().get(0).getShortForecast());
-
 					this.currentTemp.setText(this.weather.getHourlyPeriods().get(0).getTemperature() + "°F");
-
-					double currHumidity = getCurrentValue(WeatherGridInformation.get24HrValues(
-							this.weather.getValuesMap().get("relativeHumidity").getValues(), this.currentTime,
-							this.weather.getTimeZone()));
-					this.humidity.setText("Humidity: " + (int) currHumidity + "%");
-
-					double currPrecip = getCurrentValue(WeatherGridInformation.get24HrValues(
-							this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues(), this.currentTime,
-							this.weather.getTimeZone()));
-					this.precipitation.setText("Precipitation: " + (int) currPrecip + "%");
-
 					this.currLocation.setText(weather.getCurrentLocation());
 					this.windSpeed.setText("Wind: " + this.weather.getHourlyPeriods().get(0).getWindDirection() + " "
 							+ this.weather.getHourlyPeriods().get(0).getWindSpeed());
+					this.weatherIcon = new Image(this.weather.getHourlyPeriods().get(0).getIcon(), 100, 100, true,
+							true);
+					this.weatherIconView.setImage(weatherIcon);
 
+					ArrayList<WeatherValues> currHumidity = WeatherGridInformation.get24HrValues(
+							this.weather.getValuesMap().get("relativeHumidity").getValues(), this.currentTime);
+					this.humidity.setText("Humidity: " + (int) currHumidity.get(0).getValue() + "%");
+
+					ArrayList<WeatherValues> precipValues = WeatherGridInformation.get24HrValues(
+							this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues(),
+							this.currentTime);
+					this.precipitation.setText("Precipitation: " + (int) precipValues.get(0).getValue() + "%");
+
+					// Update the high and low temperature for the day
 					String high = String.valueOf(
 							(int) this.weather.getValuesMap().get("maxTemperature").getValues().get(0).getValue());
 					String low = String.valueOf(
@@ -438,23 +463,16 @@ public class MainGUI extends Application {
 
 					this.highAndLowTemp.setText("High: " + high + "°F, Low: " + low + "°F");
 
+					// Update the middle area of the GUI with forecast charts
 					ArrayList<AreaChart<String, Number>> chartList = Charts
 							.createPeriodAreaCharts(this.weather.getHourlyPeriods());
 
 					this.chartPane.getTabs().get(0).setContent(chartList.get(0));
-					this.chartPane.getTabs().get(1)
-							.setContent(Charts.createAreaChart(
-									this.weather.getValuesMap().get("probabilityOfPrecipitation").getValues(),
-									this.currentTime, this.weather.getTimeZone()));
-					this.chartPane.getTabs().get(2)
-							.setContent(Charts.createAreaChart(
-									this.weather.getValuesMap().get("relativeHumidity").getValues(), this.currentTime,
-									this.weather.getTimeZone()));
+					this.chartPane.getTabs().get(1).setContent(Charts.createAreaChart(precipValues, this.currentTime));
+					this.chartPane.getTabs().get(2).setContent(Charts.createAreaChart(currHumidity, this.currentTime));
 					this.chartPane.getTabs().get(3).setContent(chartList.get(1));
-					this.weatherIcon = new Image(this.weather.getHourlyPeriods().get(0).getIcon(), 100, 100, true,
-							true);
-					this.weatherIconView.setImage(weatherIcon);
 
+					// Update the bottom portion of the GUI with the forecast boxes
 					loadForecastBox();
 				});
 
@@ -468,37 +486,6 @@ public class MainGUI extends Application {
 			}
 
 		}
-	}
-
-	/**
-	 * Checks to see if the current time matches with the current value
-	 * 
-	 * @param list
-	 * @return
-	 */
-	private double getCurrentValue(ArrayList<WeatherValues> list) {
-		double value = 0;
-		DateTimeFormatter df = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
-		for (WeatherValues currWV : list) {
-			String time = currWV.getValidTime();
-			time = time.replace("T", " ");
-			LocalDateTime date = LocalDateTime.from(df.parse(time));
-
-			LocalTime validTime = date.toLocalTime();
-
-			int currHr = currentTime.getHour();
-			int valHr = validTime.getHour();
-
-			if (currHr == valHr) {
-				System.out.println("Same Hour!");
-				System.out.println(validTime);
-				System.out.println(currentTime);
-				value = currWV.getValue();
-			}
-
-		}
-
-		return value;
 	}
 
 	/**
@@ -556,10 +543,11 @@ public class MainGUI extends Application {
 
 	}
 
-	private void stopClock() {
-		this.clockThread.stop();
-	}
-
+	/**
+	 * Launches the MainGUI
+	 * 
+	 * @param args
+	 */
 	public static void main(String[] args) {
 		launch(args);
 	}

@@ -89,7 +89,7 @@ public class JSONReader {
 	 * @param list
 	 * @param url  - url to the JSON file
 	 */
-	private static void jsonGridForecast(WeatherInformation weather, String url) {
+	public static void jsonGridForecast(WeatherInformation weather, String url) {
 		String json = readUrl(url);
 		Gson gson = new Gson();
 		// Create the overall object for the .json file
@@ -123,13 +123,12 @@ public class JSONReader {
 					time = time.replace("+00:00", "Z");
 
 					Instant timestamp = Instant.parse(time);
-					ZonedDateTime losAngelesTime = timestamp.atZone(ZoneId.of(weather.getTimeZone()));
-					System.out.println(losAngelesTime);
+					ZonedDateTime newTimeZone = timestamp.atZone(ZoneId.of(weather.getTimeZone()));
 
-					String newTime = losAngelesTime.toString();
-					newTime = newTime.replace("weather.getTimeZone()", "/" + duration);
+					String newTime = newTimeZone.toString();
 
-					System.out.println(newTime);
+					newTime = newTime.replace("[" + weather.getTimeZone() + "]", "/" + duration);
+					wv.setValidTime(newTime);
 
 				}
 
@@ -147,8 +146,7 @@ public class JSONReader {
 	 * @param url  - url to the JSON file
 	 * @throws WeatherJsonError
 	 */
-	private static void jsonHourlyAndRegularForecast(ArrayList<WeatherPeriod> list, String url)
-			throws WeatherJsonError {
+	public static void jsonHourlyAndRegularForecast(ArrayList<WeatherPeriod> list, String url) throws WeatherJsonError {
 		String json = readUrl(url);
 		Gson gson = new Gson();
 		JsonObject obj = JsonParser.parseString(json).getAsJsonObject();
@@ -192,7 +190,7 @@ public class JSONReader {
 	 * @param urlString - Website to be accessed
 	 * @return - String representing the website's contents
 	 */
-	private static String readUrl(String urlString) {
+	public static String readUrl(String urlString) {
 		try {
 			URL url = new URL(urlString);
 			HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -236,7 +234,7 @@ public class JSONReader {
 	 * @param location - String of the requested location
 	 * @return - String in form: lat,long
 	 */
-	private static String getLatLong(String location) {
+	public static String getLatLong(String location) {
 		String url = WeatherInformation.GEOCODE_URL + "outFormat=xml&location=" + location;
 
 		try {
@@ -271,7 +269,7 @@ public class JSONReader {
 	 * 
 	 * @param values
 	 */
-	private static void convertCelsiusToF(ArrayList<WeatherValues> values) {
+	public static void convertCelsiusToF(ArrayList<WeatherValues> values) {
 
 		for (WeatherValues wv : values) {
 			double val = wv.getValue();

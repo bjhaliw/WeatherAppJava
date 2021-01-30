@@ -1,5 +1,8 @@
 package model;
 
+import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -38,7 +41,8 @@ public class WeatherInformation {
 
 	/**
 	 * Constructor for the WeatherInformation class. Takes in a String representing
-	 * the location that the user wants to get the weather of
+	 * the location that the user wants to get the weather of. Immediate starts the
+	 * process of collecting data
 	 * 
 	 * @param location - String representing the user's requested location
 	 * @throws WeatherJsonError
@@ -47,10 +51,55 @@ public class WeatherInformation {
 		this.valuesMap = new HashMap<>();
 		this.hourlyPeriods = new ArrayList<>();
 		this.detailedPeriods = new ArrayList<>();
+		this.currentCondition = "";
+		this.currentTemp = "";
+		this.currentLocation = "";
+		this.timeZone = "";
 
 		if (location != null && !location.equals("")) {
 			// Access API for MapQuest and NWS and return the latlong location
 			JSONReader.manipulateJSON(this, location);
+		}
+	}
+
+	/**
+	 * Default constructor. Does not automatically start the weather collection
+	 * process. Used for testing purposes.
+	 */
+	public WeatherInformation() {
+		this.valuesMap = new HashMap<>();
+		this.hourlyPeriods = new ArrayList<>();
+		this.detailedPeriods = new ArrayList<>();
+		this.currentCondition = "";
+		this.currentTemp = "";
+		this.currentLocation = "";
+		this.timeZone = "";
+
+	}
+
+	/**
+	 * Removes old values that may be present in the given array
+	 * 
+	 * @param list - Abstract list containing the values to be checked
+	 * @param time - The current time
+	 */
+	public static void removeOldValues(ArrayList<?> list, LocalTime time) {
+		DateTimeFormatter df = DateTimeFormatter.ISO_OFFSET_DATE_TIME;
+		ArrayList<?> temp = (ArrayList<?>) list.clone();
+
+		for (Object obj : temp) {
+			if (obj instanceof WeatherPeriod) {
+				WeatherPeriod currPeriod = (WeatherPeriod) obj;
+				LocalDateTime date = LocalDateTime.from(df.parse(currPeriod.getStartTime()));
+
+				if (date.toLocalTime().compareTo(time) < 0) {
+					if (date.getHour() != time.getHour()) {
+						list.remove(obj);
+					}
+				} else {
+					break;
+				}
+			}
 		}
 	}
 
