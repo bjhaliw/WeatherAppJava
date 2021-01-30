@@ -15,3 +15,6 @@
   Once the work with the API is completed, the program used Jsoup to scrape the NWS website with the requested location to obtain the current weather information (temperature, humidity, wind speed, etc.). This information is stored in a Java object named Weather. 
   
   After the Java objects have been created, the program then updates the JavaFX nodes in the MainGUI class with the updated weather details. The background image of the program will change depending on the weather condition (cloudy, sunny, etc.). This is done by entering the required folder containing the pictures and then selecting a random file.
+
+# Sample Photos
+![Weather App](https://github.com/bjhaliw/WeatherAppJava/blob/main/Sample%20Photos/weatherapp.png)
